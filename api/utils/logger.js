@@ -1,10 +1,12 @@
-// Placeholder for logger.jsconst logger = {
-  info: (...params) => {
-    console.log('[INFO]', ...params);
-  },
-  error: (...params) => {
-    console.error('[ERROR]', ...params);
-  }
-};
+function info() {
+  console.log('[INFO]', ...arguments);
+}
 
-module.exports = logger;
+function error() {
+  console.error('[ERROR]', ...arguments);
+}
+
+module.exports = {
+  info,
+  error
+};
