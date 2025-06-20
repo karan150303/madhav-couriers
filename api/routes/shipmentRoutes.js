@@ -1,8 +1,4 @@
-const express = require('express');
-const router = express.Router();
-const Shipment = require('../models/shipment');
-
-// Create new shipment (with enhanced real-time updates)
+// Update the POST /api/shipments route
 router.post('/', async (req, res) => {
   try {
     const newShipment = new Shipment({
@@ -15,17 +11,23 @@ router.post('/', async (req, res) => {
       currentCity: req.body.currentCity,
       shipmentDetails: req.body.shipmentDetails,
       weight: req.body.weight,
-      lastUpdated: new Date() // Ensure timestamp is set
+      lastUpdated: new Date()
     });
 
     const savedShipment = await newShipment.save();
     
-    // Enhanced real-time emission
+    // Enhanced real-time emission to all clients
     req.app.get('io').emit('shipment-update', {
       action: 'created',
-      shipment: savedShipment.toObject() // Convert to plain object
+      shipment: savedShipment.toObject()
     });
     
+    // Also emit to the specific tracking number room
+    req.app.get('io').to(savedShipment.trackingNumber).emit('tracking-update', {
+      action: 'updated',
+      shipment: savedShipment.toObject()
+    });
+
     res.status(201).json({
       success: true,
       shipment: savedShipment
@@ -38,26 +40,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all shipments (optimized query)
-router.get('/', async (req, res) => {
-  try {
-    const shipments = await Shipment.find()
-      .sort({ lastUpdated: -1 })
-      .lean(); // Faster response
-    
-    res.json({
-      success: true,
-      data: shipments
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: 'Server error fetching shipments'
-    });
-  }
-});
-
-// Add this new endpoint for tracking page
+// Update the tracking endpoint
 router.get('/track/:trackingNumber', async (req, res) => {
   try {
     const shipment = await Shipment.findOne({ 
@@ -71,6 +54,14 @@ router.get('/track/:trackingNumber', async (req, res) => {
       });
     }
     
+    // Subscribe the client to tracking updates
+    if (req.app.get('io')) {
+      const socket = req.app.get('io').sockets.sockets.get(req.query.socketId);
+      if (socket) {
+        socket.join(req.params.trackingNumber);
+      }
+    }
+    
     res.json({
       success: true,
       data: shipment
@@ -82,5 +73,3 @@ router.get('/track/:trackingNumber', async (req, res) => {
     });
   }
 });
-
-module.exports = router;
