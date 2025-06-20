@@ -1,17 +1,25 @@
-// Add this at the top
-const mongoose = require('mongoose');
+const express = require('express');
+const router = express.Router();
+const Shipment = require('../models/shipment');
 
-// Modify your POST route
+// Create new shipment
 router.post('/', async (req, res) => {
   try {
     const newShipment = new Shipment({
-      ...req.body,
-      lastUpdated: new Date()
+      trackingNumber: req.body.trackingNumber,
+      customerName: req.body.customerName,
+      customerPhone: req.body.customerPhone,
+      origin: req.body.origin,
+      destination: req.body.destination,
+      status: req.body.status || 'Booked',
+      currentCity: req.body.currentCity,
+      shipmentDetails: req.body.shipmentDetails,
+      weight: req.body.weight
     });
 
     const savedShipment = await newShipment.save();
     
-    // Broadcast to all connected clients
+    // Emit real-time update
     req.app.get('io').emit('new-shipment', savedShipment);
     
     res.status(201).json({
@@ -25,3 +33,18 @@ router.post('/', async (req, res) => {
     });
   }
 });
+
+// Get all shipments
+router.get('/', async (req, res) => {
+  try {
+    const shipments = await Shipment.find().sort({ lastUpdated: -1 });
+    res.json(shipments);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
+module.exports = router;
