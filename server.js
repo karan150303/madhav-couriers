@@ -3,30 +3,33 @@ const express = require('express');
 const path = require('path');
 const app = express();
 
-// 1. Basic Setup (3 lines)
+// Basic setup
 app.use(express.json());
-app.use(express.static('public'));
-app.use('/admin', express.static('admin'));
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// 2. Database Connection (1 line)
-require('./api/utils/db'); // This loads your db.js
+// Database connection
+require('./api/utils/db');
 
-// 3. Routes (2 lines)
+// Routes
 app.use('/api/auth', require('./api/routes/authRoutes'));
 app.use('/api/shipments', require('./api/routes/shipmentRoutes'));
 
-// 4. Page Handlers (6 lines)
+// Frontend pages
 app.get(['/', '/about', '/contact', '/rates'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Admin pages
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
+
 app.get('/admin/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
 });
 
-// 5. Start Server (3 lines)
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
