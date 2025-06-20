@@ -1,5 +1,4 @@
 const Shipment = require('../../models/Shipment');
-const ShipmentUpdate = require('../../models/ShipmentUpdate');
 const asyncHandler = require('express-async-handler');
 const logger = require('../utils/logger');
 
