@@ -25,7 +25,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
 });
 
 // Dashboard functionality
-if (window.location.pathname.includes('dashboard.html')) {
+if (window.location.pathname.includes('/admin/dashboard')) {
     // DOM Elements
     const addShipmentBtn = document.getElementById('addShipmentBtn');
     const addShipmentModal = document.getElementById('addShipmentModal');
