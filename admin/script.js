@@ -13,11 +13,11 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
         
         const data = await response.json();
         
-        if (data.success) {
-            window.location.href = 'dashboard.html';
-        } else {
-            alert('Invalid credentials');
-        }
+       if (data.success) {
+    window.location.href = '/admin/dashboard';
+} else {
+    alert('Invalid credentials');
+}
     } catch (error) {
         console.error('Login error:', error);
         alert('Login failed. Please try again.');
