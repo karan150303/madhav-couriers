@@ -17,58 +17,101 @@ const app = express();
 const db = require('./config/db.config');
 db.connect();
 
-// Middleware
+// Trust proxies if behind reverse proxy (e.g., Nginx)
+app.set('trust proxy', 1);
+
+// Enhanced security middleware
 app.use(helmet());
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(
+  cors({
+    origin: [
+      process.env.FRONTEND_URL,
+      process.env.ADMIN_URL
+    ],
+    credentials: true
+  })
+);
+
+// Body parsers
+app.use(express.json({ limit: '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
+
+// Cookie parser
 app.use(cookieParser());
+
+// Data sanitization
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+// Rate limiting - stricter for auth routes
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 200,
+  message: 'Too many requests from this IP, please try again later'
 });
-app.use(limiter);
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many login attempts, please try again later'
+});
+
+app.use(generalLimiter);
+app.use('/api/auth', authLimiter);
 
 // Logging
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Static files
-app.use(express.static(path.join(__dirname, 'public')));
+// Static files - with cache control
+app.use(
+  express.static(path.join(__dirname, 'public'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0'
+  })
+);
 
-// Routes
+// Admin static files (with auth check)
+app.use(
+  '/admin',
+  express.static(path.join(__dirname, 'admin'), {
+    maxAge: process.env.NODE_ENV === 'production' ? '1d' : '0'
+  })
+);
+
+// API Routes
 app.use('/api/auth', require('./api/routes/authRoutes'));
 app.use('/api/shipments', require('./api/routes/shipmentRoutes'));
 
-// Serve HTML files
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+// Frontend routes
+const serveFrontend = (page) => (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', `${page}.html`));
+};
+
+['/', '/about', '/contact', '/rates'].forEach(route => {
+  app.get(route, serveFrontend(route === '/' ? 'index' : route.slice(1)));
 });
 
-app.get('/about', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'about.html'));
-});
+// Admin route handlers with token verification
+const verifyAdminToken = (req, res, next) => {
+  const token = req.cookies.adminToken || req.headers['authorization']?.split(' ')[1];
+  
+  if (!token) {
+    return res.redirect('/admin/login');
+  }
 
-app.get('/contact', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'contact.html'));
-});
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.admin = decoded;
+    next();
+  } catch (err) {
+    res.redirect('/admin/login');
+  }
+};
 
-app.get('/rates', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'rates.html'));
-});
-
-// Admin routes
-app.get('/admin/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin', 'login.html'));
-});
-
-app.get('/admin/dashboard', (req, res) => {
+// Protected admin routes
+app.get('/admin/dashboard', verifyAdminToken, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
 });
 
@@ -76,14 +119,29 @@ app.get('/admin/dashboard', (req, res) => {
 const errorHandler = require('./api/middleware/errorMiddleware');
 app.use(errorHandler);
 
-// Start server
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+});
+
+// Server startup
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM RECEIVED. Shutting down gracefully');
+  server.close(() => {
+    console.log('Process terminated');
+  });
 });
 
 process.on('unhandledRejection', (err) => {
   console.log('UNHANDLED REJECTION! 💥 Shutting down...');
   console.log(err.name, err.message);
-  process.exit(1);
+  server.close(() => {
+    process.exit(1);
+  });
 });
