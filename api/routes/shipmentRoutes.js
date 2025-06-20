@@ -1,31 +1,27 @@
-const express = require('express');
-const router = express.Router();
-const Shipment = require('../models/shipment');
+// Add this at the top
+const mongoose = require('mongoose');
 
-// Get all shipments
-router.get('/', async (req, res) => {
-    try {
-        const shipments = await Shipment.find();
-        res.json(shipments);
-    } catch (err) {
-        res.status(500).json({ message: err.message });
-    }
-});
-
-// Add new shipment
+// Modify your POST route
 router.post('/', async (req, res) => {
-    const shipment = new Shipment({
-        trackingNumber: req.body.trackingNumber,
-        customerName: req.body.customerName,
-        // Add other fields from your form
+  try {
+    const newShipment = new Shipment({
+      ...req.body,
+      lastUpdated: new Date()
     });
 
-    try {
-        const newShipment = await shipment.save();
-        res.status(201).json(newShipment);
-    } catch (err) {
-        res.status(400).json({ message: err.message });
-    }
+    const savedShipment = await newShipment.save();
+    
+    // Broadcast to all connected clients
+    req.app.get('io').emit('new-shipment', savedShipment);
+    
+    res.status(201).json({
+      success: true,
+      shipment: savedShipment
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
 });
-
-module.exports = router;
