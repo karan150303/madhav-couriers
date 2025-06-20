@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Madhav Couriers and Logistics | Fast & Reliable Shipping</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-dark: #1d4ed8;
+            --secondary: #f59e0b;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --gray: #94a3b8;
+            --success: #10b981;
+            --danger: #ef4444;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            color: var(--dark);
+            line-height: 1.6;
+            background-color: #f1f5f9;
+        }
+        
+        .container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header Styles */
+        header {
+            background-color: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo img {
+            height: 50px;
+            width: auto;
+        }
+        
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        nav {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        nav a {
+            text-decoration: none;
+            color: var(--dark);
+            font-weight: 500;
+            transition: color 0.3s;
+            padding: 8px 12px;
+            border-radius: 4px;
+        }
+        
+        nav a:hover {
+            color: var(--primary);
+        }
+        
+        .admin-btn {
+            background-color: var(--primary);
+            color: white !important;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+        
+        .admin-btn:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        /* Banner Styles */
+        .banner {
+            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .banner::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://images.unsplash.com/photo-1518455027359-f3f8164ba6bd?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80') no-repeat center center/cover;
+            opacity: 0.15;
+            z-index: 1;
+        }
+        
+        .banner .container {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .banner h2 {
+            font-size: 2.5rem;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        .banner p {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        /* Discount Banner */
+        .discount-banner {
+            background-color: var(--secondary);
+            color: white;
+            text-align: center;
+            padding: 15px 0;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        /* Tracking Section */
+        .tracking {
+            background-color: white;
+            padding: 60px 0;
+            text-align: center;
+        }
+        
+        .tracking h3 {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: var(--primary);
+        }
+        
+        #trackForm {
+            display: flex;
+            max-width: 600px;
+            margin: 0 auto;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        #trackForm input {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            background-color: #f8fafc;
+            font-size: 1rem;
+        }
+        
+        #trackForm input:focus {
+            outline: none;
+            background-color: white;
+            box-shadow: inset 0 0 0 2px var(--primary);
+        }
+        
+        #trackForm button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 0 25px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        
+        #trackForm button:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        #trackResult {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: #f8fafc;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            display: none;
+        }
+        
+        /* Status badge styles */
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .status-booked {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+        
+        .status-transit {
+            background-color: #fef3c7;
+            color: #92400e;
+        }
+        
+        .status-out {
+            background-color: #fce7f3;
+            color: #831843;
+        }
+        
+        .status-delivered {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+        
+        /* Services Section */
+        .services {
+            padding: 60px 0;
+            background-color: #f8fafc;
+        }
+        
+        .services h3 {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: var(--primary);
+            text-align: center;
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+        
+        .service-card {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        
+        .service-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .service-icon {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        
+        .service-card h4 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: var(--dark);
+        }
+        
+        .service-card p {
+            color: var(--gray);
+        }
+        
+        /* Benefits Section */
+        .benefits {
+            padding: 60px 0;
+            background-color: white;
+        }
+        
+        .benefits h3 {
+            font-size: 1.8rem;
+            margin-bottom: 30px;
+            color: var(--primary);
+            text-align: center;
+        }
+        
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+        }
+        
+        .benefit-card {
+            background-color: #f8fafc;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .benefit-card h4 {
+            font-size: 1.3rem;
+            margin-bottom: 15px;
+            color: var(--dark);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .benefit-card h4 i {
+            color: var(--primary);
+        }
+        
+        .benefit-card p {
+            color: var(--gray);
+        }
+        
+        /* Footer Styles */
+        footer {
+            background-color: var(--dark);
+            color: white;
+            padding: 60px 0 0;
+        }
+        
+        .footer-content {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .footer-section h4 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: white;
+            position: relative;
+            padding-bottom: 10px;
+        }
+        
+        .footer-section h4::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 50px;
+            height: 2px;
+            background-color: var(--secondary);
+        }
+        
+        .footer-section p {
+            margin-bottom: 15px;
+            opacity: 0.8;
+        }
+        
+        .footer-section i {
+            margin-right: 10px;
+            color: var(--secondary);
+        }
+        
+        .copyright {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid #334155;
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+        
+        /* Responsive Styles */
+        @media (max-width: 768px) {
+            .header-container {
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .banner h2 {
+                font-size: 2rem;
+            }
+            
+            #trackForm {
+                flex-direction: column;
+            }
+            
+            #trackForm input {
+                padding: 15px;
+            }
+            
+            #trackForm button {
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container header-container">
+            <div class="logo">
+                <img src="images/logo.png" alt="Madhav Couriers">
+                <h1>Madhav Couriers and Logistics</h1>
+            </div>
+            <nav>
+                <a href="index.html">Home</a>
+                <a href="rates.html">Rates</a>
+                <a href="about.html">About</a>
+                <a href="contact.html">Contact</a>
+                <a href="admin/login.html" class="admin-btn">Admin</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="banner">
+        <div class="container">
+            <h2>Fast & Reliable Courier Services Across India</h2>
+            <p>Since 2025 - Jalandhar Based</p>
+        </div>
+    </section>
+
+    <section class="discount-banner">
+        <div class="container">
+            <p><i class="fas fa-tag"></i> 40% OFF on your first shipment (upto ₹150) <i class="fas fa-tag"></i></p>
+        </div>
+    </section>
+
+    <section class="tracking">
+        <div class="container">
+            <h3>Track Your Shipment</h3>
+            <form id="trackForm">
+                <input type="text" placeholder="Enter tracking number (e.g. MCL123456789)" required>
+                <button type="submit"><i class="fas fa-search"></i> Track</button>
+            </form>
+            <div id="trackResult"></div>
+        </div>
+    </section>
+
+    <section class="services">
+        <div class="container">
+            <h3>Our Services</h3>
+            <div class="services-grid">
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-headset"></i>
+                    </div>
+                    <h4>24/7 Customer Support</h4>
+                    <p>Round-the-clock assistance for all your courier needs and tracking inquiries.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-shield-alt"></i>
+                    </div>
+                    <h4>Secure Handling</h4>
+                    <p>Your packages are handled with utmost care and security throughout the journey.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-truck-fast"></i>
+                    </div>
+                    <h4>Express Delivery</h4>
+                    <p>Priority shipping options for time-sensitive packages with real-time tracking.</p>
+                </div>
+                <div class="service-card">
+                    <div class="service-icon">
+                        <i class="fas fa-map-marked-alt"></i>
+                    </div>
+                    <h4>Nationwide Coverage</h4>
+                    <p>Extensive network covering all major cities and towns across India.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="benefits">
+        <div class="container">
+            <h3>Why Choose Madhav Couriers?</h3>
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <h4><i class="fas fa-clock"></i> Fastest Delivery Network</h4>
+                    <p>With our optimized logistics network, we guarantee the fastest delivery times in the industry, ensuring your packages reach their destination on time, every time.</p>
+                </div>
+                <div class="benefit-card">
+                    <h4><i class="fas fa-lock"></i> Secure & Reliable</h4>
+                    <p>Your packages are handled with care using our specialized tracking systems and secure handling procedures, giving you peace of mind throughout the shipping process.</p>
+                </div>
+                <div class="benefit-card">
+                    <h4><i class="fas fa-headset"></i> 24/7 Customer Support</h4>
+                    <p>Our dedicated support team is available round the clock to assist you with any queries or concerns about your shipments, ensuring a seamless experience.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Madhav Couriers and Logistics</h4>
+                    <p>Your trusted partner for fast and reliable shipping solutions across India.</p>
+                    <p><i class="fas fa-map-marker-alt"></i> Jalandhar Based Courier Service since 2025</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Quick Links</h4>
+                    <p><a href="index.html" style="color: white; text-decoration: none;">Home</a></p>
+                    <p><a href="rates.html" style="color: white; text-decoration: none;">Shipping Rates</a></p>
+                    <p><a href="about.html" style="color: white; text-decoration: none;">About Us</a></p>
+                    <p><a href="contact.html" style="color: white; text-decoration: none;">Contact</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact Us</h4>
+                    <p><i class="fas fa-phone"></i> 7652813197 / 9814178706</p>
+                    <p><i class="fas fa-envelope"></i> support@madhavcouriers.in</p>
+                    <p><i class="fab fa-instagram"></i> @madhavcouriesandlogistics</p>
+                    <p><i class="fas fa-clock"></i> Mon-Sat: 9AM - 7PM</p>
+                </div>
+            </div>
+            <div class="copyright">
+                <p>&copy; 2025 Madhav Couriers and Logistics. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Tracking form handling
+        document.getElementById('trackForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const trackResult = document.getElementById('trackResult');
+            const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
+            
+            // Check if tracking number starts with MCL and has 12 characters
+            if (!trackingNumber.startsWith('MCL') || trackingNumber.length !== 12) {
+                trackResult.innerHTML = `
+                    <div style="color: var(--danger); background: #fee2e2; padding: 15px; border-radius: 6px;">
+                        <strong>Invalid tracking number format.</strong> Please enter a valid MCL tracking number (e.g. MCL123456789).
+                    </div>
+                `;
+                trackResult.style.display = 'block';
+                return;
+            }
+            
+            // Check localStorage for shipments data (shared with admin)
+            let shipments = JSON.parse(localStorage.getItem('shipments')) || [];
+            const shipment = shipments.find(s => s.trackingNumber === trackingNumber);
+            
+            if (shipment) {
+                // Format status with appropriate color
+                let statusClass = '';
+                let statusText = shipment.status;
+                
+                switch(shipment.status) {
+                    case 'Booked':
+                        statusClass = 'status-booked';
+                        break;
+                    case 'In Transit':
+                        statusClass = 'status-transit';
+                        break;
+                    case 'Out for Delivery':
+                        statusClass = 'status-out';
+                        break;
+                    case 'Delivered':
+                        statusClass = 'status-delivered';
+                        break;
+                }
+                
+                trackResult.innerHTML = `
+                    <h4>Tracking Results for: ${trackingNumber}</h4>
+                    <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 10px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span><strong>Status:</strong></span>
+                            <span class="status-badge ${statusClass}" style="font-weight: 600;">${statusText}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span><strong>Customer:</strong></span>
+                            <span>${shipment.customerName}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span><strong>Origin:</strong></span>
+                            <span>${shipment.origin}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span><strong>Destination:</strong></span>
+                            <span>${shipment.destination}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                            <span><strong>Current Location:</strong></span>
+                            <span>${shipment.currentCity}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between;">
+                            <span><strong>Last Update:</strong></span>
+                            <span>${shipment.lastUpdated}</span>
+                        </div>
+                        ${shipment.shipmentDetails ? `
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
+                            <strong>Shipment Details:</strong>
+                            <p>${shipment.shipmentDetails}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            } else {
+                trackResult.innerHTML = `
+                    <div style="color: var(--danger); background: #fee2e2; padding: 15px; border-radius: 6px;">
+                        <strong>No shipment found with tracking number:</strong> ${trackingNumber}
+                    </div>
+                `;
+            }
+            
+            trackResult.style.display = 'block';
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,298 @@
+/* General Styles */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    line-height: 1.6;
+    color: #333;
+}
+
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 15px;
+}
+
+/* Header Styles */
+header {
+    background: #2c3e50;
+    color: white;
+    padding: 15px 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+}
+
+.logo img {
+    height: 50px;
+    margin-right: 15px;
+}
+
+.logo h1 {
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 15px;
+}
+
+nav a {
+    color: white;
+    text-decoration: none;
+    margin-left: 20px;
+    transition: color 0.3s;
+}
+
+nav a:hover {
+    color: #f39c12;
+}
+
+.admin-btn {
+    background: #f39c12;
+    padding: 8px 15px;
+    border-radius: 5px;
+}
+
+/* Banner Styles */
+.banner {
+    background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url('../images/banner.jpg');
+    background-size: cover;
+    background-position: center;
+    color: white;
+    text-align: center;
+    padding: 100px 0;
+}
+
+.banner h2 {
+    font-size: 2.5rem;
+    margin-bottom: 15px;
+}
+
+.banner p {
+    font-size: 1.2rem;
+}
+
+/* Discount Banner */
+.discount-banner {
+    background: #e74c3c;
+    color: white;
+    text-align: center;
+    padding: 15px 0;
+    font-weight: bold;
+}
+
+/* Tracking Section */
+.tracking {
+    padding: 50px 0;
+    text-align: center;
+    background: #f9f9f9;
+}
+
+.tracking h3 {
+    margin-bottom: 20px;
+}
+
+.tracking form {
+    display: flex;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.tracking input {
+    flex: 1;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px 0 0 5px;
+}
+
+.tracking button {
+    background: #2c3e50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+}
+
+#trackResult {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    background: white;
+    display: none;
+}
+
+/* Rates Section */
+.rates {
+    padding: 50px 0;
+}
+
+.rates h3 {
+    margin: 30px 0 15px;
+    color: #2c3e50;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 30px;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #ddd;
+}
+
+th {
+    background: #2c3e50;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background: #f9f9f9;
+}
+
+.notes {
+    background: #f9f9f9;
+    padding: 20px;
+    border-radius: 5px;
+    margin-top: 30px;
+}
+
+/* About Section */
+.about {
+    padding: 50px 0;
+}
+
+.about h2 {
+    color: #2c3e50;
+    margin-bottom: 20px;
+}
+
+/* Contact Section */
+.contact {
+    padding: 50px 0;
+}
+
+.contact h2 {
+    color: #2c3e50;
+    margin-bottom: 30px;
+}
+
+.contact-info {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.contact-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.contact-item i {
+    font-size: 1.5rem;
+    margin-right: 15px;
+    color: #2c3e50;
+}
+
+/* Footer Styles */
+footer {
+    background: #2c3e50;
+    color: white;
+    padding: 30px 0 0;
+}
+
+.footer-content {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 30px;
+    margin-bottom: 30px;
+}
+
+.footer-section h4 {
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.footer-section p {
+    margin: 5px 0;
+}
+
+.copyright {
+    text-align: center;
+    padding: 15px 0;
+    border-top: 1px solid #34495e;
+    font-size: 0.9rem;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .logo {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .logo img {
+        margin-right: 0;
+        margin-bottom: 10px;
+    }
+    
+    nav {
+        flex-direction: column;
+    }
+    
+    nav a {
+        margin: 5px 0;
+    }
+    
+    .banner h2 {
+        font-size: 2rem;
+    }
+    
+    .tracking form {
+        flex-direction: column;
+    }
+    
+    .tracking input {
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
+    
+    .tracking button {
+        border-radius: 5px;
+    }
+}/* Admin Tracking Results */
+#trackResult {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 5px;
+    background: #f9f9f9;
+    display: none;
+}
+
+#trackResult h4 {
+    color: #2c3e50;
+    margin-top: 0;
+}
+
+#trackResult p {
+    margin: 8px 0;
+}
+
+#trackResult .error {
+    color: #e74c3c;
+}
