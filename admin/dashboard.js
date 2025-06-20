@@ -1,3 +1,36 @@
+// Add this at the top
+const socket = io();
+
+// Real-time updates listener
+socket.on('new-shipment', (shipment) => {
+  // Update the table without refresh
+  addShipmentToTable(shipment);
+  updateStats();
+});
+
+// Helper function to dynamically add rows
+function addShipmentToTable(shipment) {
+  const tableBody = document.querySelector('#shipmentsTable tbody');
+  const row = document.createElement('tr');
+  
+  row.innerHTML = `
+    <td>${shipment.trackingNumber}</td>
+    <td>${shipment.customerName}</td>
+    <td><span class="status-badge ${getStatusClass(shipment.status)}">${shipment.status}</span></td>
+    <td>${shipment.currentCity}</td>
+    <td>${new Date(shipment.lastUpdated).toLocaleString()}</td>
+    <td>
+      <button class="action-btn" data-id="${shipment._id}">
+        <i class="fas fa-eye"></i>
+      </button>
+      <button class="action-btn btn-edit" data-id="${shipment._id}">
+        <i class="fas fa-edit"></i>
+      </button>
+    </td>
+  `;
+  
+  tableBody.insertBefore(row, tableBody.firstChild);
+}
 // ========== ADMIN DASHBOARD ==========
 if (window.location.pathname.includes('/admin/dashboard')) {
     // Check authentication
