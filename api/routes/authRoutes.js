@@ -1,3 +1,4 @@
+const Admin = require('../../models/admin'); // Keep all other code the same
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
