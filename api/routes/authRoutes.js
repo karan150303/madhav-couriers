@@ -1,44 +1,31 @@
-const Admin = require('../../models/admin');
 const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const Admin = require('../models/Admin');
-const { loginValidation } = require('../validation');
+const Admin = require('../../models/admin'); // Correct path for your structure
+const { loginValidation } = require('../../validation/validation');
 
-// Admin Login
+// Admin login
 router.post('/login', async (req, res) => {
-    // Validate request
+    // Validation
     const { error } = loginValidation(req.body);
-    if (error) return res.status(400).json({ message: error.details[0].message });
+    if (error) return res.status(400).send(error.details[0].message);
 
     try {
         // Check if admin exists
         const admin = await Admin.findOne({ username: req.body.username });
-        if (!admin) return res.status(400).json({ message: 'Invalid credentials' });
+        if (!admin) return res.status(400).send('Invalid credentials');
 
         // Check password
         const validPass = await bcrypt.compare(req.body.password, admin.password);
-        if (!validPass) return res.status(400).json({ message: 'Invalid credentials' });
+        if (!validPass) return res.status(400).send('Invalid credentials');
 
-        // Create and assign token
-        const token = jwt.sign(
-            { _id: admin._id, role: 'admin' }, 
-            process.env.JWT_SECRET, 
-            { expiresIn: '8h' }
-        );
+        // Create token
+        const token = jwt.sign({ _id: admin._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
 
-        res.json({
-            success: true,
-            token,
-            user: {
-                id: admin._id,
-                username: admin.username
-            }
-        });
+        res.header('auth-token', token).send(token);
     } catch (err) {
-        console.error('Login error:', err);
-        res.status(500).json({ message: 'Server error during authentication' });
+        res.status(500).send('Server error');
     }
 });
 
