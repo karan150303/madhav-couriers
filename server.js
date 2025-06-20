@@ -1,3 +1,17 @@
+// Add at the top
+const http = require('http');
+const { Server } = require('socket.io');
+
+// Replace app.listen with:
+const server = http.createServer(app);
+const io = new Server(server);
+
+// Store io instance for routes
+app.set('io', io);
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`✅ Server running on port ${PORT}`);
+});
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
