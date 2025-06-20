@@ -1,3 +1,4 @@
+const Shipment = require('../../models/shipment');
 const express = require('express');
 const router = express.Router();
 const Shipment = require('../models/Shipment');
