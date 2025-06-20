@@ -1,5 +1,5 @@
 // ========== ADMIN LOGIN ==========
-if (window.location.pathname === '/admin/login') {
+if (window.location.pathname === '/admin/login.html') {
     const loginForm = document.getElementById('adminLoginForm');
     if (loginForm) {
         loginForm.addEventListener('submit', async function (e) {
@@ -17,7 +17,7 @@ if (window.location.pathname === '/admin/login') {
                 const data = await response.json();
 
                 if (data.success) {
-                    window.location.href = '/admin/dashboard';
+                    window.location.href = '/admin/dashboard.html';
                 } else {
                     alert('Invalid credentials');
                 }
