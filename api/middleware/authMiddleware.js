@@ -1,41 +1,27 @@
 const jwt = require('jsonwebtoken');
-const asyncHandler = require('express-async-handler');
-const User = require('../../models/User');
-const logger = require('../utils/logger');
 
-exports.protect = asyncHandler(async (req, res, next) => {
-  let token;
+module.exports = function(req, res, next) {
+    // Get token from header
+    const token = req.header('Authorization')?.replace('Bearer ', '');
 
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith('Bearer')
-  ) {
-    token = req.headers.authorization.split(' ')[1];
-  } else if (req.cookies.jwt) {
-    token = req.cookies.jwt;
-  }
+    // Check if no token
+    if (!token) {
+        return res.status(401).json({ message: 'No token, authorization denied' });
+    }
 
-  if (!token) {
-    res.status(401);
-    throw new Error('Not authorized, no token');
-  }
+    // Verify token
+    try {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Check if admin
+        if (decoded.role !== 'admin') {
+            return res.status(401).json({ message: 'Admin privileges required' });
+        }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = await User.findById(decoded.id).select('-password');
-    next();
-  } catch (err) {
-    logger.error(`JWT verification failed: ${err.message}`);
-    res.status(401);
-    throw new Error('Not authorized, token failed');
-  }
-});
-
-exports.admin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
-    next();
-  } else {
-    res.status(403);
-    throw new Error('Not authorized as an admin');
-  }
+        req.user = decoded;
+        next();
+    } catch (err) {
+        console.error('Token verification error:', err);
+        res.status(401).json({ message: 'Token is not valid' });
+    }
 };
