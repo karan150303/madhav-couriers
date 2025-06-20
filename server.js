@@ -3,19 +3,14 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
-const mongoose = require('mongoose');
 
-// Initialize express app first
+// Initialize app first
 const app = express();
 
-// Create HTTP server
+// Create server and Socket.io
 const server = http.createServer(app);
-
-// Initialize Socket.io
 const io = new Server(server);
-
-// Store io instance for routes
-app.set('io', io);
+app.set('io', io); // Make io accessible in routes
 
 // Middleware
 app.use(express.json());
@@ -43,10 +38,9 @@ app.get('/admin/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
 });
 
-// Socket.io connection handler
+// Socket.io connection
 io.on('connection', (socket) => {
-  console.log('A client connected');
-  
+  console.log('New client connected');
   socket.on('disconnect', () => {
     console.log('Client disconnected');
   });
