@@ -64,3 +64,17 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+// Enhanced Socket.io connection
+io.on('connection', (socket) => {
+  console.log(`New client connected: ${socket.id}`);
+  
+  // Handle tracking number subscriptions
+  socket.on('subscribe-to-tracking', (trackingNumber) => {
+    socket.join(trackingNumber); // Join a room for this tracking number
+    console.log(`Client subscribed to tracking: ${trackingNumber}`);
+  });
+  
+  socket.on('disconnect', () => {
+    console.log(`Client disconnected: ${socket.id}`);
+  });
+});
