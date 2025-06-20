@@ -1,85 +1,133 @@
-const mongoose = require('mongoose');
+const express = require('express');
+const router = express.Router();
+const Shipment = require('../models/shipment');
 
-const ShipmentSchema = new mongoose.Schema({
-    trackingNumber: {
-        type: String,
-        required: true,
-        unique: true,
-        minlength: 8,
-        maxlength: 20
-    },
-    customerName: {
-        type: String,
-        required: true,
-        minlength: 3,
-        maxlength: 50
-    },
-    customerPhone: {
-        type: String,
-        required: true,
-        minlength: 10,
-        maxlength: 15
-    },
-    origin: {
-        type: String,
-        required: true,
-        minlength: 3,
-        maxlength: 50
-    },
-    destination: {
-        type: String,
-        required: true,
-        minlength: 3,
-        maxlength: 50
-    },
-    status: {
-        type: String,
-        required: true,
-        enum: ['Booked', 'In Transit', 'Out for Delivery', 'Delivered', 'Cancelled'],
-        default: 'Booked'
-    },
-    currentCity: {
-        type: String,
-        required: true,
-        minlength: 2,
-        maxlength: 50
-    },
-    shipmentDetails: {
-        type: String,
-        maxlength: 500
-    },
-    weight: {
-        type: Number,
-        required: true,
-        min: 0.1
-    },
-    lastUpdated: {
-        type: Date,
-        default: Date.now
-    },
-    history: [{
-        status: String,
-        location: String,
-        timestamp: {
-            type: Date,
-            default: Date.now
-        },
-        notes: String
-    }]
-}, {
-    timestamps: true
-});
-
-// Add to history when status changes
-ShipmentSchema.pre('save', function(next) {
-    if (this.isModified('status') || this.isModified('currentCity')) {
-        this.history.push({
-            status: this.status,
-            location: this.currentCity,
-            notes: this.shipmentDetails || 'Status updated'
+// Get all shipments (with sorting by lastUpdated)
+router.get('/', async (req, res) => {
+    try {
+        const shipments = await Shipment.find().sort({ lastUpdated: -1 });
+        res.json(shipments);
+    } catch (err) {
+        res.status(500).json({ 
+            success: false,
+            message: 'Error fetching shipments',
+            error: err.message 
         });
     }
-    next();
 });
 
-module.exports = mongoose.model('Shipment', ShipmentSchema);
+// Create new shipment
+router.post('/', async (req, res) => {
+    try {
+        const newShipment = new Shipment({
+            trackingNumber: req.body.trackingNumber,
+            customerName: req.body.customerName,
+            customerPhone: req.body.customerPhone,
+            origin: req.body.origin,
+            destination: req.body.destination,
+            status: req.body.status || 'Booked',
+            currentCity: req.body.currentCity,
+            shipmentDetails: req.body.shipmentDetails,
+            weight: req.body.weight
+        });
+
+        const savedShipment = await newShipment.save();
+        
+        res.status(201).json({
+            success: true,
+            shipment: savedShipment
+        });
+    } catch (err) {
+        res.status(400).json({
+            success: false,
+            message: 'Error creating shipment',
+            error: err.message
+        });
+    }
+});
+
+// Update shipment
+router.put('/:id', async (req, res) => {
+    try {
+        const updatedShipment = await Shipment.findByIdAndUpdate(
+            req.params.id,
+            {
+                $set: req.body,
+                lastUpdated: Date.now()
+            },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedShipment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shipment not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            shipment: updatedShipment
+        });
+    } catch (err) {
+        res.status(400).json({
+            success: false,
+            message: 'Error updating shipment',
+            error: err.message
+        });
+    }
+});
+
+// Delete shipment
+router.delete('/:id', async (req, res) => {
+    try {
+        const deletedShipment = await Shipment.findByIdAndDelete(req.params.id);
+        
+        if (!deletedShipment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shipment not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'Shipment deleted successfully'
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: 'Error deleting shipment',
+            error: err.message
+        });
+    }
+});
+
+// Get single shipment by tracking number
+router.get('/track/:trackingNumber', async (req, res) => {
+    try {
+        const shipment = await Shipment.findOne({ 
+            trackingNumber: req.params.trackingNumber 
+        });
+
+        if (!shipment) {
+            return res.status(404).json({
+                success: false,
+                message: 'Shipment not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            shipment: shipment
+        });
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: 'Error finding shipment',
+            error: err.message
+        });
+    }
+});
+
+module.exports = router;
