@@ -2,6 +2,48 @@
 const socket = io();
 
 // Real-time updates listener
+socket.on('shipment-update', (data) => {
+    if (data.action === 'created') {
+        addShipmentToTable(data.shipment);
+        updateStats();
+    }
+});
+
+// Helper function to dynamically add rows
+function addShipmentToTable(shipment) {
+    const tableBody = document.querySelector('#shipmentsTable tbody');
+    if (!tableBody) return;
+    
+    const row = document.createElement('tr');
+    row.innerHTML = `
+        <td>${shipment.trackingNumber}</td>
+        <td>${shipment.customerName}</td>
+        <td>${shipment.customerPhone}</td>
+        <td><span class="status-badge ${getStatusClass(shipment.status)}">${shipment.status}</span></td>
+        <td>${shipment.currentCity}</td>
+        <td>${formatDate(shipment.lastUpdated)}</td>
+        <td class="actions">
+            <button class="action-btn btn-view" data-id="${shipment._id}"><i class="fas fa-eye"></i></button>
+            <button class="action-btn btn-edit" data-id="${shipment._id}"><i class="fas fa-edit"></i></button>
+            <button class="action-btn btn-delete" data-id="${shipment._id}"><i class="fas fa-trash"></i></button>
+        </td>
+    `;
+    
+    // Add to the top of the table
+    if (tableBody.firstChild) {
+        tableBody.insertBefore(row, tableBody.firstChild);
+    } else {
+        tableBody.appendChild(row);
+    }
+    
+    // Reattach event listeners
+    row.querySelector('.btn-edit').addEventListener('click', () => openEditModal(shipment._id));
+    row.querySelector('.btn-delete').addEventListener('click', () => deleteShipment(shipment._id));
+}
+// Add this at the top
+const socket = io();
+
+// Real-time updates listener
 socket.on('new-shipment', (shipment) => {
   // Update the table without refresh
   addShipmentToTable(shipment);
