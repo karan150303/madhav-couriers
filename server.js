@@ -4,77 +4,63 @@ const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
 
-// Initialize app first
+// Initialize Express app
 const app = express();
 
-// Create server and Socket.io with CORS enabled
+// Create HTTP server and bind with Socket.IO
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Allows all origins (adjust in production)
+    origin: "*", // Allow all origins (adjust for production)
     methods: ["GET", "POST"]
   }
 });
 
-// Make io accessible in routes
+// Attach io instance to app so it's available in controllers
 app.set('io', io);
 
-// Middleware (keep existing)
+// Middleware
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/admin', express.static(path.join(__dirname, 'admin')));
 
-// Database connection (keep existing)
+// DB Connection
 require('./api/utils/db');
 
-// Routes (keep existing)
+// API Routes
 app.use('/api/auth', require('./api/routes/authRoutes'));
 app.use('/api/shipments', require('./api/routes/shipmentRoutes'));
 
-// Frontend routes (keep existing)
+// Frontend Routes
 app.get(['/', '/about', '/contact', '/rates'], (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Admin routes (keep existing)
+// Admin Panel Routes
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
-
 app.get('/admin/dashboard', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
 });
 
-// Enhanced Socket.io connection
+// 🔴 Socket.IO Connection
 io.on('connection', (socket) => {
-  console.log(`New client connected: ${socket.id}`);
-  
-  socket.on('disconnect', () => {
-    console.log(`Client disconnected: ${socket.id}`);
+  console.log(`🔌 Client connected: ${socket.id}`);
+
+  // Handle tracking room subscriptions
+  socket.on('subscribe-to-tracking', (trackingNumber) => {
+    socket.join(trackingNumber);
+    console.log(`📦 Subscribed to tracking room: ${trackingNumber}`);
   });
-  
-  // Add this to handle initial data requests if needed
-  socket.on('request-initial-data', () => {
-    // You can implement this if clients need initial data load
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Client disconnected: ${socket.id}`);
   });
 });
 
-// Start server (keep existing)
+// Start Server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
-});
-// Enhanced Socket.io connection
-io.on('connection', (socket) => {
-  console.log(`New client connected: ${socket.id}`);
-  
-  // Handle tracking number subscriptions
-  socket.on('subscribe-to-tracking', (trackingNumber) => {
-    socket.join(trackingNumber); // Join a room for this tracking number
-    console.log(`Client subscribed to tracking: ${trackingNumber}`);
-  });
-  
-  socket.on('disconnect', () => {
-    console.log(`Client disconnected: ${socket.id}`);
-  });
 });
