@@ -1,32 +1,28 @@
-// Initialize socket connection
+// Initialize socket connection to server
 const socket = io();
 
 // Track form submission
 document.getElementById('trackForm')?.addEventListener('submit', async function (e) {
   e.preventDefault();
+
   const trackResult = document.getElementById('trackResult');
   const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
 
-  // Validation
+  // Validate tracking format
   if (!trackingNumber.startsWith('MCL') || trackingNumber.length !== 12) {
-    trackResult.innerHTML = `
-      <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
-        <strong>Invalid tracking number format.</strong> Please enter a valid MCL tracking number (e.g. MCL123456789).
-      </div>
-    `;
-    trackResult.style.display = 'block';
+    showValidationError();
     return;
   }
 
-  try {
-    // Subscribe to tracking updates
-    socket.emit('subscribe-to-tracking', trackingNumber);
+  // Subscribe client to this tracking number for real-time updates
+  socket.emit('subscribe-to-tracking', trackingNumber);
 
-    // Fetch shipment from correct route
+  // Fetch from backend
+  try {
     const response = await fetch(`/api/shipments/${trackingNumber}`);
     const result = await response.json();
 
-    if (result.success) {
+    if (result.success && result.data) {
       displayShipment(result.data);
     } else {
       showNotFoundError(trackingNumber);
@@ -41,22 +37,22 @@ document.getElementById('trackForm')?.addEventListener('submit', async function 
 
 // Listen for real-time updates
 socket.on('tracking-update', (data) => {
-  if (data.action === 'updated') {
+  if (data?.action === 'updated' && data.shipment) {
     displayShipment(data.shipment);
   }
 });
 
-// Display shipment on page
+// Display shipment tracking data
 function displayShipment(shipment) {
-  const statusClass = getStatusClass(shipment.status);
-  const statusText = shipment.status;
+  const statusClass = getStatusClass(shipment.status || '');
+  const updatedDate = new Date(shipment.updatedAt || shipment.createdAt).toLocaleString();
 
   document.getElementById('trackResult').innerHTML = `
     <h4>Tracking Results for: ${shipment.tracking_number}</h4>
     <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 10px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
         <span><strong>Status:</strong></span>
-        <span class="status-badge ${statusClass}" style="font-weight: 600;">${statusText}</span>
+        <span class="status-badge ${statusClass}" style="font-weight: 600;">${shipment.status}</span>
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
         <span><strong>Customer:</strong></span>
@@ -76,7 +72,7 @@ function displayShipment(shipment) {
       </div>
       <div style="display: flex; justify-content: space-between;">
         <span><strong>Last Update:</strong></span>
-        <span>${new Date(shipment.updatedAt || shipment.createdAt).toLocaleString()}</span>
+        <span>${updatedDate}</span>
       </div>
       ${shipment.shipment_details ? `
         <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
@@ -87,7 +83,7 @@ function displayShipment(shipment) {
   `;
 }
 
-// Get CSS class for status
+// Return badge class
 function getStatusClass(status) {
   switch (status) {
     case 'Booked': return 'status-booked';
@@ -98,7 +94,16 @@ function getStatusClass(status) {
   }
 }
 
-// Error UI
+// Show errors
+function showValidationError() {
+  document.getElementById('trackResult').innerHTML = `
+    <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
+      <strong>Invalid tracking number format.</strong> Please enter a valid MCL tracking number (e.g. MCL123456789).
+    </div>
+  `;
+  document.getElementById('trackResult').style.display = 'block';
+}
+
 function showNotFoundError(trackingNumber) {
   document.getElementById('trackResult').innerHTML = `
     <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
