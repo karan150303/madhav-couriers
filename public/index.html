@@ -536,11 +536,11 @@
     </footer>
 
     <script>
-        // Tracking form handling
-        document.getElementById('trackForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const trackResult = document.getElementById('trackResult');
-            const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
+       <!-- Real-time Socket.IO -->
+<script src="/socket.io/socket.io.js"></script>
+
+<!-- Your tracking script -->
+<script src="js/tracking.js"></script>
             
             // Check if tracking number starts with MCL and has 12 characters
             if (!trackingNumber.startsWith('MCL') || trackingNumber.length !== 12) {
