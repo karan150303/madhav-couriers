@@ -19,7 +19,7 @@ document.getElementById('trackForm')?.addEventListener('submit', async function 
 
   // Fetch from backend
   try {
-    const response = await fetch(`/api/shipments/${trackingNumber}`);
+    const response = await fetch(`/api/shipments/track/${trackingNumber}`);
     const result = await response.json();
 
     if (result.success && result.data) {
@@ -48,7 +48,10 @@ function displayShipment(shipment) {
   const updatedDate = new Date(shipment.updatedAt || shipment.createdAt).toLocaleString();
 
   document.getElementById('trackResult').innerHTML = `
-    <h4>Tracking Results for: ${shipment.tracking_number}</h4>
+    <h4>Tracking Results for: ${shipment.trackingNumber}</h4>
+<span>${shipment.customerName}</span>
+<span>${shipment.currentCity}</span>
+<p>${shipment.shipmentDetails}</p>
     <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 10px;">
       <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
         <span><strong>Status:</strong></span>
