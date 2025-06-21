@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Shipment = require('../models/shipment');
 
-// Create new shipment (with enhanced real-time updates)
+// Create new shipment
 router.post('/', async (req, res) => {
   try {
     const newShipment = new Shipment({
@@ -19,13 +19,13 @@ router.post('/', async (req, res) => {
     });
 
     const savedShipment = await newShipment.save();
-    
-    // Enhanced real-time emission
+
+    // Emit to clients (real-time update)
     req.app.get('io').emit('shipment-update', {
       action: 'created',
       shipment: savedShipment.toObject()
     });
-    
+
     res.status(201).json({
       success: true,
       shipment: savedShipment
@@ -38,13 +38,10 @@ router.post('/', async (req, res) => {
   }
 });
 
-// Get all shipments (optimized query)
+// Get all shipments
 router.get('/', async (req, res) => {
   try {
-    const shipments = await Shipment.find()
-      .sort({ lastUpdated: -1 })
-      .lean();
-    
+    const shipments = await Shipment.find().sort({ lastUpdated: -1 }).lean();
     res.json({
       success: true,
       data: shipments
@@ -57,20 +54,18 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Tracking endpoint
+// Get shipment by tracking number
 router.get('/track/:trackingNumber', async (req, res) => {
   try {
-    const shipment = await Shipment.findOne({ 
-      trackingNumber: req.params.trackingNumber 
-    }).lean();
-    
+    const shipment = await Shipment.findOne({ trackingNumber: req.params.trackingNumber });
+
     if (!shipment) {
       return res.status(404).json({
         success: false,
         message: 'Shipment not found'
       });
     }
-    
+
     res.json({
       success: true,
       data: shipment
