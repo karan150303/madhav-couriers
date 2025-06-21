@@ -1,4 +1,5 @@
 const Shipment = require('../../models/Shipment');
+const ShipmentUpdate = require('../../models/ShipmentUpdate');
 const asyncHandler = require('express-async-handler');
 const logger = require('../utils/logger');
 
@@ -52,7 +53,6 @@ exports.createShipment = asyncHandler(async (req, res) => {
     weight
   } = req.body;
 
-  // Validate tracking number format
   if (!tracking_number.match(/^MCL\d{9}$/)) {
     res.status(400);
     throw new Error('Tracking number must start with MCL followed by 9 digits');
@@ -71,7 +71,6 @@ exports.createShipment = asyncHandler(async (req, res) => {
     created_by: req.user.id
   });
 
-  // Create initial update
   await ShipmentUpdate.create({
     shipment_id: shipment._id,
     status: status,
@@ -80,6 +79,13 @@ exports.createShipment = asyncHandler(async (req, res) => {
   });
 
   logger.info(`New shipment created: ${tracking_number} by user ${req.user.id}`);
+
+  // 🔴 Real-time tracking update emit
+  const io = req.app.get('io');
+  io.to(tracking_number).emit('tracking-update', {
+    action: 'updated',
+    shipment: shipment
+  });
 
   res.status(201).json({
     success: true,
@@ -100,7 +106,6 @@ exports.updateShipment = asyncHandler(async (req, res) => {
 
   const { status, current_city, notes } = req.body;
 
-  // Create update record if status or location changed
   if (status !== shipment.status || current_city !== shipment.current_city) {
     await ShipmentUpdate.create({
       shipment_id: shipment._id,
@@ -117,6 +122,13 @@ exports.updateShipment = asyncHandler(async (req, res) => {
   );
 
   logger.info(`Shipment updated: ${req.params.trackingNumber} by user ${req.user.id}`);
+
+  // 🔴 Real-time tracking update emit
+  const io = req.app.get('io');
+  io.to(req.params.trackingNumber).emit('tracking-update', {
+    action: 'updated',
+    shipment: shipment
+  });
 
   res.status(200).json({
     success: true,
@@ -150,7 +162,7 @@ exports.deleteShipment = asyncHandler(async (req, res) => {
 // @access  Public
 exports.getRates = asyncHandler(async (req, res) => {
   const rates = await Rate.find();
-  
+
   res.status(200).json({
     success: true,
     data: rates
