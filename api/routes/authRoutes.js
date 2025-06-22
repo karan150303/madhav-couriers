@@ -74,7 +74,7 @@ router.post('/admin/login', authLimiter, async (req, res) => {
 
     // Set both cookie and return token for flexibility
     res.cookie('adminToken', token, {
-       httpOnly: true,
+       httpOnly: false,
        secure: process.env.NODE_ENV === 'production',
        sameSite: 'strict',
        path: '/', // ✅ REQUIRED FIX
