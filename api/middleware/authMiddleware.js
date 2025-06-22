@@ -1,27 +1,24 @@
 const jwt = require('jsonwebtoken');
 
-module.exports = function(req, res, next) {
-    // Get token from header
-    const token = req.header('Authorization')?.replace('Bearer ', '');
+module.exports = function (req, res, next) {
+  const token = req.cookies?.adminToken;
 
-    // Check if no token
-    if (!token) {
-        return res.status(401).json({ message: 'No token, authorization denied' });
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Unauthorized: No token in cookies' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    if (decoded.role !== 'admin') {
+      return res.status(403).json({ success: false, message: 'Forbidden: Admin access only' });
     }
 
-    // Verify token
-    try {
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        
-        // Check if admin
-        if (decoded.role !== 'admin') {
-            return res.status(401).json({ message: 'Admin privileges required' });
-        }
-
-        req.user = decoded;
-        next();
-    } catch (err) {
-        console.error('Token verification error:', err);
-        res.status(401).json({ message: 'Token is not valid' });
-    }
+    req.admin = decoded;
+    next();
+  } catch (err) {
+    console.error('❌ Token verification failed:', err.message);
+    res.clearCookie('adminToken');
+    return res.status(401).json({ success: false, message: 'Unauthorized: Invalid token' });
+  }
 };
