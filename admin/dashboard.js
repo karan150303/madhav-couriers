@@ -89,9 +89,9 @@ document.addEventListener('DOMContentLoaded', function () {
       return await response.json();
     },
 
-    update: async (trackingNumber, data) => {
-      const response = await fetch(`/api/shipments/${trackingNumber}`, {
-        method: 'PUT',
+    update: async (shipmentId, data) => {
+  const response = await fetch(`/api/shipments/${shipmentId}`, {
+    method: 'PATCH', 
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
