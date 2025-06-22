@@ -1,30 +1,38 @@
-setInterval(function() {
-  window.location.reload();
-}, 10000); // Reloads page every 10 sec
-// Initialize socket connection to server
+// Initialize socket connection
 const socket = io();
 
 // Track form submission
-document.getElementById('trackForm')?.addEventListener('submit', async function (e) {
+document.getElementById('trackForm')?.addEventListener('submit', async function(e) {
   e.preventDefault();
-
+  
   const trackResult = document.getElementById('trackResult');
   const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
 
+  // Clear previous results
+  trackResult.innerHTML = '';
+  trackResult.style.display = 'none';
+
   // Validate tracking format
-  if (!trackingNumber.startsWith('MCL') || trackingNumber.length !== 12) {
+  if (!trackingNumber.match(/^MCL\d{9}$/)) {
     showValidationError();
     return;
   }
 
-  // Subscribe client to this tracking number for real-time updates
+  // Subscribe to tracking updates
   socket.emit('subscribe-to-tracking', trackingNumber);
 
-  // Fetch from backend
   try {
-    const response = await fetch(`/api/shipments/track/${trackingNumber}`);
+    // Fetch shipment data
+    const response = await fetch(`/api/shipments/${trackingNumber}`, {
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    if (!response.ok) throw new Error('Network error');
+    
     const result = await response.json();
-
+    
     if (result.success && result.data) {
       displayShipment(result.data);
     } else {
@@ -34,94 +42,106 @@ document.getElementById('trackForm')?.addEventListener('submit', async function 
     console.error('Tracking error:', error);
     showServerError();
   }
-
-  trackResult.style.display = 'block';
 });
 
 // Listen for real-time updates
 socket.on('tracking-update', (data) => {
   if (data?.action === 'updated' && data.shipment) {
     displayShipment(data.shipment);
+    showNotification("Shipment status updated!");
   }
 });
 
-// Display shipment tracking data
+// Display shipment data
 function displayShipment(shipment) {
-  const statusClass = getStatusClass(shipment.status || '');
+  const statusClass = getStatusClass(shipment.status);
   const updatedDate = new Date(shipment.updatedAt || shipment.createdAt).toLocaleString();
 
   document.getElementById('trackResult').innerHTML = `
-    <h4>Tracking Results for: ${shipment.trackingNumber}</h4>
-<span>${shipment.customerName}</span>
-<span>${shipment.currentCity}</span>
-<p>${shipment.shipmentDetails}</p>
-    <div style="background: white; padding: 15px; border-radius: 6px; margin-top: 10px;">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <span><strong>Status:</strong></span>
-        <span class="status-badge ${statusClass}" style="font-weight: 600;">${shipment.status}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <span><strong>Customer:</strong></span>
-        <span>${shipment.customer_name}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <span><strong>Origin:</strong></span>
-        <span>${shipment.origin}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <span><strong>Destination:</strong></span>
-        <span>${shipment.destination}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
-        <span><strong>Current Location:</strong></span>
-        <span>${shipment.current_city}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between;">
-        <span><strong>Last Update:</strong></span>
-        <span>${updatedDate}</span>
-      </div>
-      ${shipment.shipment_details ? `
-        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
-          <strong>Shipment Details:</strong>
+    <div class="tracking-result">
+      <h4>Tracking Results: ${shipment.tracking_number}</h4>
+      <div class="tracking-card">
+        <div class="tracking-row">
+          <span>Status:</span>
+          <span class="status-badge ${statusClass}">${shipment.status}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Customer:</span>
+          <span>${shipment.customer_name}</span>
+        </div>
+        <div class="tracking-row">
+          <span>From:</span>
+          <span>${shipment.origin}</span>
+        </div>
+        <div class="tracking-row">
+          <span>To:</span>
+          <span>${shipment.destination}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Current Location:</span>
+          <span>${shipment.current_city}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Last Update:</span>
+          <span>${updatedDate}</span>
+        </div>
+        ${shipment.shipment_details ? `
+        <div class="tracking-details">
+          <strong>Details:</strong>
           <p>${shipment.shipment_details}</p>
         </div>` : ''}
-    </div>
-  `;
-}
-
-// Return badge class
-function getStatusClass(status) {
-  switch (status) {
-    case 'Booked': return 'status-booked';
-    case 'In Transit': return 'status-transit';
-    case 'Out for Delivery': return 'status-out';
-    case 'Delivered': return 'status-delivered';
-    default: return '';
-  }
-}
-
-// Show errors
-function showValidationError() {
-  document.getElementById('trackResult').innerHTML = `
-    <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
-      <strong>Invalid tracking number format.</strong> Please enter a valid MCL tracking number (e.g. MCL123456789).
+      </div>
     </div>
   `;
   document.getElementById('trackResult').style.display = 'block';
 }
 
+// Status badge styling
+function getStatusClass(status) {
+  const statusMap = {
+    'Booked': 'status-booked',
+    'In Transit': 'status-transit',
+    'Out for Delivery': 'status-out',
+    'Delivered': 'status-delivered'
+  };
+  return statusMap[status] || '';
+}
+
+// Error handling
+function showValidationError() {
+  showError('Invalid tracking number format. Please use MCL followed by 9 digits (e.g. MCL123456789)');
+}
+
 function showNotFoundError(trackingNumber) {
-  document.getElementById('trackResult').innerHTML = `
-    <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
-      <strong>No shipment found with tracking number:</strong> ${trackingNumber}
-    </div>
-  `;
+  showError(`No shipment found with tracking number: ${trackingNumber}`);
 }
 
 function showServerError() {
-  document.getElementById('trackResult').innerHTML = `
-    <div style="color: #ef4444; background: #fee2e2; padding: 15px; border-radius: 6px;">
-      <strong>Error:</strong> Could not retrieve tracking information. Please try again later.
+  showError('Could not retrieve tracking information. Please try again later.');
+}
+
+function showError(message) {
+  const trackResult = document.getElementById('trackResult');
+  trackResult.innerHTML = `
+    <div class="error-message">
+      <i class="fas fa-exclamation-circle"></i>
+      ${message}
     </div>
   `;
+  trackResult.style.display = 'block';
+}
+
+// Notification for updates
+function showNotification(message) {
+  const notification = document.createElement('div');
+  notification.className = 'tracking-notification';
+  notification.innerHTML = `
+    <i class="fas fa-sync-alt"></i> ${message}
+  `;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => notification.remove(), 500);
+  }, 3000);
 }
