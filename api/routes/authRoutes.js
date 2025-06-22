@@ -74,10 +74,11 @@ router.post('/admin/login', authLimiter, async (req, res) => {
 
     // Set both cookie and return token for flexibility
     res.cookie('adminToken', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 3600000
+       httpOnly: true,
+       secure: process.env.NODE_ENV === 'production',
+       sameSite: 'strict',
+       path: '/', // ✅ REQUIRED FIX
+       maxAge: 3600000
     });
 
     res.json({
