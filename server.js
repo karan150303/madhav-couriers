@@ -153,30 +153,31 @@ app.use(express.static(path.join(__dirname, 'public'), {
 /* ====================== */
 const connectDB = async () => {
   try {
-    if (!process.env.MONGODB_URI) {
-      throw new Error('MONGODB_URI environment variable not set');
+    const mongoUri = process.env.MONGODB_URI;
+    if (!mongoUri) {
+      throw new Error('MONGODB_URI not set in environment variables');
     }
-    
-    await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // 5 second timeout
-      socketTimeoutMS: 45000, // 45 second socket timeout
+
+    await mongoose.connect(mongoUri, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 30000
     });
-    
-    logger.info('MongoDB connection established');
+
+    logger.info('✅ MongoDB connected successfully');
     
     mongoose.connection.on('connected', () => {
-      logger.info('MongoDB connected');
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
+      logger.info('MongoDB connection active');
     });
     
     mongoose.connection.on('error', (err) => {
       logger.error('MongoDB connection error:', err);
     });
+    
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected');
+    });
   } catch (err) {
-    logger.error('MongoDB connection failed:', err);
+    logger.error('❌ MongoDB connection failed:', err.message);
     process.exit(1);
   }
 };
