@@ -45,19 +45,21 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       await Admin.findByIdAndUpdate(admin._id, {
         $inc: { loginAttempts: 1 },
         ...(admin.loginAttempts + 1 >= 5 && {
-          lockedUntil: Date.now() + 30 * 60 * 1000
+          lockedUntil: Date.now() + 30 * 60 * 1000 // lock 30 mins
         })
       });
+
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // Reset attempts after successful login
+    // ✅ Reset failed attempts after successful login
     await Admin.findByIdAndUpdate(admin._id, {
       loginAttempts: 0,
       lockedUntil: null,
-      lastLogin: Date.now()
+      lastLogin: new Date()
     });
 
+    // ✅ Generate JWT
     const token = jwt.sign(
       {
         _id: admin._id,
@@ -67,17 +69,17 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    // ✅ Set cookie securely with better compatibility
+    // ✅ Set token in cookie
     res.cookie('adminToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax', // was 'Strict', changed for better redirect behavior
-      maxAge: 3600000
+      sameSite: 'Lax', // use 'Lax' instead of 'Strict' for redirect compatibility
+      maxAge: 3600000 // 1 hour
     });
 
-    console.log('✅ Login successful. Token set in cookie.');
+    console.log('✅ Login successful');
 
-    res.json({
+    return res.json({
       success: true,
       token,
       redirect: '/admin/dashboard.html'
@@ -85,7 +87,7 @@ router.post('/admin/login', authLimiter, async (req, res) => {
 
   } catch (err) {
     console.error('❌ Login error:', err);
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
       message: 'Authentication failed'
     });
@@ -97,7 +99,7 @@ router.get('/verify', (req, res) => {
   const token = req.cookies?.adminToken;
 
   if (!token) {
-    console.log('🔒 No token in cookie');
+    console.warn('🔒 No token in cookie');
     return res.status(401).json({ success: false, message: 'Not authenticated' });
   }
 
@@ -106,7 +108,7 @@ router.get('/verify', (req, res) => {
     console.log('✅ Token verified:', decoded);
     return res.status(200).json({ success: true, admin: decoded });
   } catch (err) {
-    console.log('❌ Invalid token:', err.message);
+    console.error('❌ Invalid token:', err.message);
     res.clearCookie('adminToken');
     return res.status(401).json({ success: false, message: 'Invalid token' });
   }
