@@ -1,7 +1,46 @@
-const Shipment = require('../../models/Shipment');
-const ShipmentUpdate = require('../../models/ShipmentUpdate');
+const Shipment = require('../models/Shipment');
+const ShipmentUpdate = require('../models/ShipmentUpdate');
 const asyncHandler = require('express-async-handler');
-const logger = require('../utils/logger');
+
+// Add this to your existing shipmentcontroller.js
+exports.updateShipment = asyncHandler(async (req, res) => {
+  const { status, current_city, notes } = req.body;
+  const trackingNumber = req.params.trackingNumber;
+
+  // 1. Update the shipment
+  const shipment = await Shipment.findOneAndUpdate(
+    { tracking_number: trackingNumber },
+    { status, current_city },
+    { new: true, runValidators: true }
+  );
+
+  if (!shipment) {
+    return res.status(404).json({ success: false, error: 'Shipment not found' });
+  }
+
+  // 2. Create update history
+  const update = await ShipmentUpdate.create({
+    shipment_id: shipment._id,
+    status,
+    location: current_city,
+    notes: notes || 'Status updated'
+  });
+
+  // 3. Send real-time update to all subscribed clients
+  const io = req.app.get('io');
+  io.to(trackingNumber).emit('tracking-update', {
+    action: 'updated',
+    shipment: {
+      ...shipment.toObject(),
+      latest_update: update // Include the latest update
+    }
+  });
+
+  res.status(200).json({ 
+    success: true,
+    data: shipment 
+  });
+});
 
 // @desc    Get all shipments
 // @route   GET /api/shipments
