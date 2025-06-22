@@ -13,9 +13,9 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const { doubleCsrf } = require('csrf-csrf');
 const jwt = require('jsonwebtoken');
-const db = require('./config/db.config');
+const mongoose = require('mongoose'); // Added mongoose import
 
-// Initialize logger (added this)
+// Initialize logger
 const logger = {
   info: (...args) => console.log('[INFO]', ...args),
   error: (...args) => console.error('[ERROR]', ...args),
@@ -151,11 +151,15 @@ app.use(express.static(path.join(__dirname, 'public'), {
 /* ====================== */
 /* DATABASE CONNECTION    */
 /* ====================== */
-db.connect()
-  .then(() => {
-    logger.info('Database connection established');
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/madhav-couriers', {
+      useNewUrlParser: true,
+      useUnifiedTopology: true
+    });
     
-    // Event listeners for DB connection
+    logger.info('MongoDB connection established');
+    
     mongoose.connection.on('connected', () => {
       logger.info('MongoDB connected');
     });
@@ -163,11 +167,18 @@ db.connect()
     mongoose.connection.on('disconnected', () => {
       logger.warn('MongoDB disconnected');
     });
-  })
-  .catch(err => {
-    logger.error('Database connection failed:', err);
+    
+    mongoose.connection.on('error', (err) => {
+      logger.error('MongoDB connection error:', err);
+    });
+  } catch (err) {
+    logger.error('MongoDB connection failed:', err);
     process.exit(1);
-  });
+  }
+};
+
+// Connect to database
+connectDB();
 
 // Admin authentication middleware
 const authenticateAdmin = (req, res, next) => {
@@ -194,11 +205,11 @@ app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
-  const dbHealth = await db.checkHealth();
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({ 
     status: 'ok',
     uptime: process.uptime(),
-    database: dbHealth,
+    database: dbStatus,
     timestamp: new Date().toISOString()
   });
 });
@@ -231,7 +242,6 @@ app.get('/admin/login', csrfProtection, (req, res) => {
 
 // Example protected POST route
 app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
-  // Your form handling logic here
   res.json({ status: 'success', message: 'Form submitted successfully' });
 });
 
@@ -272,7 +282,7 @@ const PORT = process.env.PORT || 3000;
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received. Shutting down gracefully...');
-  await db.disconnect();
+  await mongoose.disconnect();
   server.close(() => {
     logger.info('Server terminated');
     process.exit(0);
@@ -281,7 +291,7 @@ process.on('SIGTERM', async () => {
 
 process.on('SIGINT', async () => {
   logger.info('SIGINT received. Shutting down gracefully...');
-  await db.disconnect();
+  await mongoose.disconnect();
   server.close(() => {
     logger.info('Server terminated');
     process.exit(0);
