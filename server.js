@@ -19,14 +19,12 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://madhavcouriers.in"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https://madhavcouriers.in"],
-      connectSrc: ["'self'", "https://madhavcouriers.in", "wss://madhavcouriers.in"]
+      scriptSrc: ["'self'", "'unsafe-inline'", `https://${process.env.DOMAIN || 'madhavcouriers.in'}`],
+      connectSrc: ["'self'", `https://${process.env.DOMAIN || 'madhavcouriers.in'}`, `wss://${process.env.DOMAIN || 'madhavcouriers.in'}`]
     }
   },
   hsts: {
-    maxAge: 63072000,
+    maxAge: 63072000, // 2 years
     includeSubDomains: true,
     preload: true
   }
@@ -36,29 +34,32 @@ app.use(helmet({
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.header('x-forwarded-proto') !== 'https') {
-      res.redirect(`https://${req.header('host')}${req.url}`);
-    } else {
-      next();
+      return res.redirect(301, `https://${req.header('host')}${req.url}`);
     }
+    next();
   });
 }
 
 // CORS Configuration
+const allowedOrigins = process.env.NODE_ENV === 'production'
+  ? [`https://${process.env.DOMAIN || 'madhavcouriers.in'}`, `https://www.${process.env.DOMAIN || 'madhavcouriers.in'}`]
+  : ['http://localhost:3000'];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://madhavcouriers.in', 'https://www.madhavcouriers.in']
-    : ['http://localhost:3000'],
+  origin: allowedOrigins,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE']
 }));
 
-// Rate limiting for API routes
+// Rate limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 100 : 200,
-  message: 'Too many requests, please try again later',
-  standardHeaders: true,
-  legacyHeaders: false
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  message: JSON.stringify({
+    status: 'error',
+    message: 'Too many requests, please try again later'
+  }),
+  standardHeaders: true
 });
 
 // ======================
@@ -68,20 +69,18 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.NODE_ENV === 'production'
-      ? 'https://madhavcouriers.in'
+      ? `https://${process.env.DOMAIN || 'madhavcouriers.in'}`
       : 'http://localhost:3000',
     methods: ['GET', 'POST']
   },
   transports: ['websocket'],
   serveClient: false,
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  allowEIO3: true
+  pingTimeout: 60000
 });
 
 // Attach io to app
 app.set('io', io);
-app.set('trust proxy', 1); // Trust first proxy
+app.set('trust proxy', 1);
 
 // ======================
 // APPLICATION MIDDLEWARE
@@ -91,23 +90,21 @@ app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Static files with cache control
-const staticOptions = {
+app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '7d' : '0',
   setHeaders: (res, path) => {
     if (path.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-store');
     }
   }
-};
-app.use(express.static(path.join(__dirname, 'public'), staticOptions));
-app.use('/admin', express.static(path.join(__dirname, 'admin'), staticOptions));
+});
 
 // ======================
 // DATABASE CONNECTION
 // ======================
 const db = require('./api/utils/db');
-db.connect()
-  .then(() => console.log('✅ Database connected to:', process.env.MONGO_URI.split('@')[1]))
+db.connect(process.env.MONGO_URI)
+  .then(() => console.log('✅ Database connected successfully'))
   .catch(err => {
     console.error('❌ Database connection failed:', err.message);
     process.exit(1);
@@ -116,22 +113,21 @@ db.connect()
 // ======================
 // ROUTES
 // ======================
-// API Routes
+// API Routes with rate limiting
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
-// Health Check Endpoint
-app.get('/health', (req, res) => res.status(200).json({ status: 'healthy' }));
+// Health check endpoint
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
 
-// Frontend Routes
-const frontendRoutes = ['/', '/about', '/contact', '/rates'];
-frontendRoutes.forEach(route => {
+// Frontend routes
+['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 });
 
-// Admin Routes
+// Admin routes
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
@@ -141,36 +137,31 @@ app.get('/admin/dashboard', (req, res) => {
 });
 
 // ======================
-// SOCKET.IO CONFIGURATION
+// SOCKET.IO AUTHENTICATION
 // ======================
 io.use((socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('Authentication error'));
   
   jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-    if (err) return next(new Error('Authentication failed'));
+    if (err) return next(new Error('Invalid token'));
     socket.user = decoded;
     next();
   });
 });
 
 io.on('connection', (socket) => {
-  console.log(`🔌 New connection: ${socket.id} (User: ${socket.user?.id || 'guest'})`);
+  console.log(`🔌 New connection: ${socket.id}`);
 
   socket.on('subscribe-to-tracking', (trackingNumber) => {
     if (!/^[A-Z0-9]{8,20}$/.test(trackingNumber)) {
       return socket.emit('error', 'Invalid tracking number format');
     }
     socket.join(`tracking:${trackingNumber}`);
-    console.log(`📦 User ${socket.user?.id} subscribed to tracking:${trackingNumber}`);
   });
 
-  socket.on('disconnect', (reason) => {
-    console.log(`❌ Disconnected (${reason}): ${socket.id}`);
-  });
-
-  socket.on('error', (err) => {
-    console.error(`⚠️ Socket error (${socket.id}):`, err.message);
+  socket.on('disconnect', () => {
+    console.log(`❌ Disconnected: ${socket.id}`);
   });
 });
 
@@ -185,10 +176,9 @@ app.use((err, req, res, next) => {
   console.error('⚠️ Error:', err.stack);
   res.status(500).json({
     status: 'error',
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
-      : err.message,
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : err.message
   });
 });
 
@@ -196,31 +186,20 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ======================
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
-
-server.listen(PORT, HOST, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`
   🚀 Server running in ${process.env.NODE_ENV} mode
-  ${process.env.NODE_ENV === 'production'
-    ? `🔗 Production: https://madhavcouriers.in`
-    : `🔗 Development: http://${HOST}:${PORT}`}
+  🔗 External: https://${process.env.DOMAIN || 'madhavcouriers.in'}
+  📡 Local: http://localhost:${PORT}
   🔐 JWT expires in: ${process.env.JWT_EXPIRE}
-  📡 Socket.IO ready
   `);
 });
 
-// ======================
-// PROCESS MANAGEMENT
-// ======================
-process.on('unhandledRejection', (err) => {
-  console.error('⚠️ Unhandled Rejection:', err);
-  server.close(() => process.exit(1));
-});
-
+// Graceful shutdown
 process.on('SIGTERM', () => {
   console.log('🛑 SIGTERM received. Closing server...');
   server.close(() => {
-    db.disconnect().finally(() => {
+    db.disconnect().then(() => {
       console.log('💤 Process terminated');
       process.exit(0);
     });
