@@ -124,7 +124,6 @@ router.get('/:id', async (req, res) => {
 // UPDATE SHIPMENT (PROTECTED)
 router.patch('/:id', authMiddleware, async (req, res) => {
   try {
-    // Prevent tracking number changes
     if (req.body.tracking_number) {
       delete req.body.tracking_number;
     }
@@ -134,7 +133,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       { 
         ...req.body,
         lastUpdated: Date.now(),
-        updatedBy: req.admin._id
+        updatedBy: req.admin._id // ✅ fixed line
       },
       { new: true, runValidators: true }
     ).lean();
@@ -144,6 +143,20 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       error.name = 'NotFoundError';
       throw error;
     }
+
+    req.app.get('io')
+      .to(`tracking:${updatedShipment.tracking_number}`)
+      .emit('shipment-updated', updatedShipment);
+
+    res.json({
+      success: true,
+      data: updatedShipment
+    });
+
+  } catch (err) {
+    handleError(res, err, 'updating shipment');
+  }
+});
 
     // Broadcast update
     req.app.get('io').to(`tracking:${updatedShipment.tracking_number}`)
