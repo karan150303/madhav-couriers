@@ -14,7 +14,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
 
     try {
-        const response = await fetch('/api/auth/admin/login', {
+        const response = await fetch('/api/auth/admin-login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
