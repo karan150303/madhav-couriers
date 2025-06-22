@@ -8,8 +8,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
     const username = document.getElementById('username').value;
     const password = document.getElementById('password').value;
     const submitBtn = this.querySelector('button[type="submit"]');
-    
-    // Show loading state
+
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
 
@@ -18,7 +17,7 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password }),
-            credentials: 'include' // Important for cookies
+            credentials: 'include'
         });
 
         const data = await response.json();
@@ -27,12 +26,12 @@ document.getElementById('adminLoginForm')?.addEventListener('submit', async func
             throw new Error(data.message || 'Login failed');
         }
 
-        // Store token in localStorage as fallback
+        // Optional fallback
         if (data.token) {
             localStorage.setItem('adminToken', data.token);
         }
 
-        // Redirect to dashboard
+        // ✅ Redirect
         window.location.href = data.redirect || '/admin/dashboard.html';
 
     } catch (error) {
