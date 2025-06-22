@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const adminSchema = new mongoose.Schema({
   username: { 
@@ -39,7 +40,7 @@ const adminSchema = new mongoose.Schema({
     type: Number,
     default: 0,
     min: 0,
-    max: 5
+    max: parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5
   },
   lockedUntil: {
     type: Date
@@ -57,11 +58,29 @@ const adminSchema = new mongoose.Schema({
   twoFactorSecret: String
 }, {
   timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
+  toJSON: { 
+    virtuals: true,
+    transform: function(doc, ret) {
+      delete ret.password;
+      delete ret.twoFactorSecret;
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      return ret;
+    }
+  },
+  toObject: { 
+    virtuals: true,
+    transform: function(doc, ret) {
+      delete ret.password;
+      delete ret.twoFactorSecret;
+      delete ret.passwordResetToken;
+      delete ret.passwordResetExpires;
+      return ret;
+    }
+  }
 });
 
-// Middleware to hash password before saving
+// Password hashing middleware
 adminSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
 
@@ -102,9 +121,26 @@ adminSchema.methods.createPasswordResetToken = function() {
     .update(resetToken)
     .digest('hex');
   
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+  this.passwordResetExpires = Date.now() + (parseInt(process.env.PASSWORD_RESET_EXPIRE) || 10 * 60 * 1000);
   
   return resetToken;
+};
+
+// Account lock methods
+adminSchema.methods.incrementLoginAttempts = async function() {
+  this.loginAttempts += 1;
+  
+  if (this.loginAttempts >= (parseInt(process.env.MAX_LOGIN_ATTEMPTS) || 5)) {
+    this.lockedUntil = Date.now() + (parseInt(process.env.ACCOUNT_LOCK_TIME) || 30 * 60 * 1000);
+  }
+  
+  await this.save();
+};
+
+adminSchema.methods.resetLoginAttempts = async function() {
+  this.loginAttempts = 0;
+  this.lockedUntil = undefined;
+  await this.save();
 };
 
 // Static method for account lock check
@@ -119,11 +155,6 @@ adminSchema.statics.checkAccountLock = async function(username) {
   return admin;
 };
 
-// Query helper to exclude inactive accounts
-adminSchema.query.active = function() {
-  return this.where({ isActive: true });
-};
-
 // Virtual for account status
 adminSchema.virtual('status').get(function() {
   if (this.lockedUntil && this.lockedUntil > Date.now()) {
@@ -132,10 +163,10 @@ adminSchema.virtual('status').get(function() {
   return this.isActive ? 'active' : 'inactive';
 });
 
-// Indexes
-adminSchema.index({ username: 1 }, { unique: true });
-adminSchema.index({ email: 1 }, { unique: true });
-adminSchema.index({ passwordResetToken: 1 });
+// Indexes (removed duplicates from schema definitions)
+adminSchema.index({ username: 1, isActive: 1 });
+adminSchema.index({ email: 1, isActive: 1 });
+adminSchema.index({ passwordResetToken: 1, passwordResetExpires: 1 });
 adminSchema.index({ lockedUntil: 1 });
 
 const Admin = mongoose.model('Admin', adminSchema);
