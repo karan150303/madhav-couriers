@@ -12,6 +12,8 @@ const cookieParser = require('cookie-parser');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const csrf = require('csurf');
+const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 
 const app = express();
 
@@ -32,7 +34,7 @@ app.use(helmet({
     }
   },
   hsts: {
-    maxAge: 63072000, // 2 years in seconds
+    maxAge: 63072000,
     includeSubDomains: true,
     preload: true
   }
@@ -83,7 +85,7 @@ const io = new Server(server, {
     credentials: true
   },
   connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+    maxDisconnectionDuration: 2 * 60 * 1000,
     skipMiddlewares: true
   }
 });
@@ -121,7 +123,23 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-app.use('/admin', express.static(path.join(__dirname, 'admin'), {
+// Admin static files with authentication middleware
+const authenticateAdmin = (req, res, next) => {
+  const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
+  
+  if (!token) {
+    return res.redirect('/admin/login.html');
+  }
+
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    next();
+  } catch (err) {
+    res.redirect('/admin/login.html');
+  }
+};
+
+app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
 }));
 
@@ -147,13 +165,13 @@ app.get('/health', (req, res) => {
     res.cookie('XSRF-TOKEN', req.csrfToken(), {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      httpOnly: false // Needs to be readable by frontend
+      httpOnly: false
     });
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
   });
 });
 
-// Admin routes
+// Admin routes with authentication
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
     secure: process.env.NODE_ENV === 'production',
@@ -163,7 +181,7 @@ app.get('/admin/login', csrfProtection, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
 
-app.get('/admin/dashboard', csrfProtection, (req, res) => {
+app.get('/admin/dashboard', authenticateAdmin, csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
@@ -194,7 +212,6 @@ app.use((req, res, next) => {
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
   
-  // Handle CSRF token errors
   if (err.code === 'EBADCSRFTOKEN') {
     return res.status(403).json({
       status: 'error',
@@ -203,7 +220,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Handle JWT errors
   if (err.name === 'JsonWebTokenError') {
     return res.status(401).json({
       status: 'error',
@@ -212,7 +228,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Handle token expired
   if (err.name === 'TokenExpiredError') {
     return res.status(401).json({
       status: 'error',
@@ -221,7 +236,6 @@ app.use((err, req, res, next) => {
     });
   }
 
-  // Default error handler
   res.status(err.status || 500).json({
     status: 'error',
     code: 'SERVER_ERROR',
@@ -234,26 +248,24 @@ app.use((err, req, res, next) => {
 // ======================
 // SERVER STARTUP
 // ======================
-// At the bottom of server.js, replace the server startup with:
 const PORT = process.env.PORT || 3000;
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-});
-
 // Database connection check before starting server
-require('./config/db.config').connect((err) => {
-  if (err) {
-    console.error('Database connection failed:', err);
-    process.exit(1);
-  }
-  
+mongoose.connect(process.env.DB_URI, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => {
+  console.log('Connected to MongoDB');
   server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
     console.log(`Database: ${mongoose.connection.host}`);
   });
+})
+.catch(err => {
+  console.error('Database connection failed:', err);
+  process.exit(1);
 });
 
 // Handle unhandled promise rejections
