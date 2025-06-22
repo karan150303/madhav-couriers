@@ -17,18 +17,13 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-const logger = {
-  info: (...args) => console.log('[INFO]', ...args),
-  error: (...args) => console.error('[ERROR]', ...args),
-  warn: (...args) => console.warn('[WARN]', ...args)
-};
-
+// 🔐 CSRF setup
 const {
   generateToken,
   validateRequest,
   doubleCsrfProtection
 } = doubleCsrf({
-  getSecret: () => process.env.CSRF_SECRET || 'default-secret-change-me',
+  getSecret: () => process.env.CSRF_SECRET || 'default-secret',
   cookieName: '__Host-psifi.x-csrf-token',
   cookieOptions: {
     httpOnly: true,
@@ -47,22 +42,14 @@ const csrfProtection = (req, res, next) => {
   next();
 };
 
+// 🛡️ Helmet with CSP fix for FontAwesome and Google Fonts
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://madhavcouriers.in"],
-      styleSrc: [
-        "'self'",
-        "'unsafe-inline'",
-        "https://fonts.googleapis.com",
-        "https://cdnjs.cloudflare.com" // ✅ Added for Font Awesome CSS
-      ],
-      fontSrc: [
-        "'self'",
-        "https://fonts.gstatic.com",
-        "https://cdnjs.cloudflare.com" // ✅ Added for Font Awesome fonts
-      ],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com", "https://cdnjs.cloudflare.com"],
       imgSrc: ["'self'", "data:", "https://madhavcouriers.in"],
       connectSrc: ["'self'", "https://madhavcouriers.in", "wss://madhavcouriers.in"],
       frameSrc: ["'self'"],
@@ -76,6 +63,7 @@ app.use(helmet({
   }
 }));
 
+// 🌐 Force HTTPS
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.header('x-forwarded-proto') !== 'https') {
@@ -85,6 +73,7 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
+// 🌐 CORS
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? ['https://madhavcouriers.in', 'https://www.madhavcouriers.in']
@@ -94,17 +83,16 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 
+// ⏳ Rate limiter
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 100 : 200,
-  message: JSON.stringify({
-    status: 'error',
-    message: 'Too many requests, please try again later'
-  }),
+  message: JSON.stringify({ status: 'error', message: 'Too many requests' }),
   standardHeaders: true,
   legacyHeaders: false
 });
 
+// 🌐 WebSocket Setup
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -122,6 +110,7 @@ const io = new Server(server, {
 app.set('io', io);
 app.set('trust proxy', 1);
 
+// 🧰 Middleware
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -129,6 +118,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(mongoSanitize());
 app.use(hpp());
 
+// 📁 Serve Public Files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0',
   setHeaders: (res, path) => {
@@ -138,53 +128,43 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// 🧠 MongoDB Connect
 const connectDB = async () => {
   try {
     const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) throw new Error('MONGODB_URI not set in environment variables');
-
+    if (!mongoUri) throw new Error('MONGODB_URI not set');
     await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 30000
     });
-
-    logger.info('✅ MongoDB connected successfully');
-
-    mongoose.connection.on('connected', () => logger.info('MongoDB connection active'));
-    mongoose.connection.on('error', err => logger.error('MongoDB error:', err));
-    mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
-
+    console.log('✅ MongoDB connected');
   } catch (err) {
-    logger.error('❌ MongoDB connection failed:', err.message);
+    console.error('❌ MongoDB Error:', err.message);
     process.exit(1);
   }
 };
 connectDB();
 
+// 🔐 Auth Middleware
 const authenticateAdmin = (req, res, next) => {
   const token = req.cookies.adminToken;
-
-  if (!token) {
-    console.log('🚫 No token in cookies. Redirecting...');
-    return res.redirect('/admin/login.html');
-  }
+  if (!token) return res.redirect('/admin/login.html');
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.admin = decoded;
-    console.log('✅ Authenticated:', decoded);
     next();
   } catch (err) {
-    console.log('❌ Invalid token:', err.message);
     res.clearCookie('adminToken');
     return res.redirect('/admin/login.html');
   }
 };
 
-// Routes
+// 🔗 API Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
+// ❤️ Healthcheck
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
@@ -195,7 +175,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Static public frontend routes
+// 🌐 Routes for static pages
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
     res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
@@ -207,7 +187,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// ✅ Make login page public (UNPROTECTED)
+// 🪪 Public Admin Login Page
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
     secure: process.env.NODE_ENV === 'production',
@@ -219,15 +199,17 @@ app.get('/admin/login', csrfProtection, (req, res) => {
 app.use('/admin/login.html', express.static(path.join(__dirname, 'admin', 'login.html')));
 app.use('/admin/login.js', express.static(path.join(__dirname, 'admin', 'login.js')));
 
-// ✅ Protect admin pages only after login
+// 🔐 Protected Admin Panel Pages
 app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
 }));
 
+// ✅ Example CSRF-protected form
 app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
-  res.json({ status: 'success', message: 'Form submitted successfully' });
+  res.json({ status: 'success', message: 'Form submitted' });
 });
 
+// 404 handler
 app.use((req, res) => {
   const errorPage = path.join(__dirname, 'public', '404.html');
   fs.existsSync(errorPage)
@@ -235,46 +217,23 @@ app.use((req, res) => {
     : res.status(404).json({ status: 'error', message: 'Not found' });
 });
 
+// 🔥 Error Handler
 app.use((err, req, res, next) => {
-  logger.error('Server error:', err);
-
+  console.error('❌ Server Error:', err);
   const errorResponse = {
     status: 'error',
     code: err.code || 'SERVER_ERROR',
-    message: process.env.NODE_ENV === 'production'
-      ? 'Internal server error'
-      : err.message
+    message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   };
-
   if (err.name === 'JsonWebTokenError') {
     errorResponse.code = 'INVALID_TOKEN';
     return res.status(401).json(errorResponse);
   }
-
   res.status(err.status || 500).json(errorResponse);
 });
 
+// 🚀 Start Server
 const PORT = process.env.PORT || 3000;
-
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received. Shutting down...');
-  await mongoose.disconnect();
-  server.close(() => {
-    logger.info('Server terminated');
-    process.exit(0);
-  });
-});
-
-process.on('SIGINT', async () => {
-  logger.info('SIGINT received. Shutting down...');
-  await mongoose.disconnect();
-  server.close(() => {
-    logger.info('Server terminated');
-    process.exit(0);
-  });
-});
-
 server.listen(PORT, () => {
-  logger.info(`🚀 Server running on port ${PORT}`);
-  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
