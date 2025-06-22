@@ -1,55 +1,50 @@
-// Admin Dashboard Controller
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize Socket.IO connection
-    const socket = io();
-    
-    // Check authentication
+    // 1. Authentication Verification
     const token = localStorage.getItem('adminToken');
-    if (!token && !window.location.pathname.includes('login.html')) {
-        window.location.href = 'login.html';
+    if (!token) {
+        localStorage.removeItem('adminLoggedIn');
+        window.location.href = '/admin/login.html';
         return;
     }
 
-    // DOM Elements
+    // 2. Initialize Socket.IO
+    const socket = io();
+
+    // 3. DOM Elements Cache
     const elements = {
-        addShipmentBtn: document.getElementById('addShipmentBtn'),
-        addShipmentModal: document.getElementById('addShipmentModal'),
-        editShipmentModal: document.getElementById('editShipmentModal'),
-        closeModals: document.querySelectorAll('.close-modal'),
-        logoutBtn: document.getElementById('logout'),
-        searchInput: document.getElementById('searchShipments'),
-        refreshBtn: document.getElementById('refreshShipments'),
-        addShipmentForm: document.getElementById('addShipmentForm'),
-        editShipmentForm: document.getElementById('editShipmentForm'),
-        cancelShipmentBtn: document.getElementById('cancelShipmentBtn')
+        // Dashboard Elements
+        stats: {
+            total: document.getElementById('totalShipments'),
+            inTransit: document.getElementById('inTransit'),
+            deliveredToday: document.getElementById('deliveredToday'),
+            pending: document.getElementById('pendingActions')
+        },
+        // Modal Elements
+        modals: {
+            add: document.getElementById('addShipmentModal'),
+            edit: document.getElementById('editShipmentModal')
+        },
+        // Form Elements
+        forms: {
+            add: document.getElementById('addShipmentForm'),
+            edit: document.getElementById('editShipmentForm')
+        },
+        // Button Elements
+        buttons: {
+            add: document.getElementById('addShipmentBtn'),
+            refresh: document.getElementById('refreshShipments'),
+            logout: document.getElementById('logout'),
+            cancel: document.getElementById('cancelShipmentBtn')
+        },
+        // Input Elements
+        inputs: {
+            search: document.getElementById('searchShipments')
+        }
     };
 
-    // Initialize modals
-    if (elements.addShipmentBtn) {
-        elements.addShipmentBtn.addEventListener('click', () => {
-            elements.addShipmentModal.style.display = 'flex';
-            // Auto-generate tracking number
-            document.getElementById('trackingNumber').value = 'MCL' + 
-                Math.floor(100000000 + Math.random() * 900000000);
-        });
-    }
-
-    // Close modals
-    elements.closeModals.forEach(btn => {
-        btn.addEventListener('click', () => {
-            elements.addShipmentModal.style.display = 'none';
-            elements.editShipmentModal.style.display = 'none';
-        });
-    });
-
-    // Close modal when clicking outside
-    window.addEventListener('click', (e) => {
-        if (e.target === elements.addShipmentModal) elements.addShipmentModal.style.display = 'none';
-        if (e.target === elements.editShipmentModal) elements.editShipmentModal.style.display = 'none';
-    });
-
-    // Utility functions
+    // 4. Utility Functions
     const utils = {
+        // Status badge class mapping
         getStatusClass: (status) => {
             const statusMap = {
                 'Booked': 'status-booked',
@@ -59,134 +54,175 @@ document.addEventListener('DOMContentLoaded', function() {
             };
             return statusMap[status] || '';
         },
+
+        // Date formatting
         formatDate: (dateString) => {
-            const options = { 
-                year: 'numeric', 
-                month: 'short', 
+            return new Date(dateString).toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
                 day: 'numeric',
                 hour: '2-digit',
                 minute: '2-digit'
-            };
-            return new Date(dateString).toLocaleDateString('en-US', options);
+            });
         },
+
+        // Show alert messages
         showAlert: (message, type = 'info') => {
             const alertBox = document.createElement('div');
             alertBox.className = `alert alert-${type}`;
             alertBox.textContent = message;
-            
             document.body.appendChild(alertBox);
-            
-            setTimeout(() => {
-                alertBox.classList.add('fade-out');
-                setTimeout(() => alertBox.remove(), 500);
-            }, 3000);
+            setTimeout(() => alertBox.remove(), 3000);
         },
-        debounce: (func, wait) => {
-            let timeout;
-            return function(...args) {
-                clearTimeout(timeout);
-                timeout = setTimeout(() => func.apply(this, args), wait);
-            };
+
+        // API Error Handler
+        handleApiError: async (response) => {
+            if (response.status === 401) {
+                localStorage.removeItem('adminToken');
+                window.location.href = '/admin/login.html';
+                return;
+            }
+            
+            const error = await response.json();
+            throw new Error(error.message || 'API request failed');
         }
     };
 
-    // Real-time update handler
-    socket.on('tracking-update', (data) => {
-        if (data.action === 'updated' || data.action === 'created') {
-            renderShipments();
-            updateStats();
-            utils.showAlert(`Shipment ${data.shipment.tracking_number} was ${data.action}`, 'success');
-        }
-    });
-
-    // Shipment operations
-    async function loadShipments(searchTerm = '') {
-        try {
-            const url = searchTerm 
-                ? `/api/shipments?search=${encodeURIComponent(searchTerm)}`
+    // 5. Shipment Operations
+    const shipmentAPI = {
+        // Fetch shipments with optional search
+        fetchAll: async (search = '') => {
+            const url = search 
+                ? `/api/shipments?search=${encodeURIComponent(search)}` 
                 : '/api/shipments';
-                
+            
             const response = await fetch(url, {
                 headers: {
-                    'Authorization': `Bearer ${token}`
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
                 }
             });
             
-            if (!response.ok) {
-                if (response.status === 401) {
-                    localStorage.removeItem('adminToken');
-                    window.location.href = 'login.html';
-                }
-                throw new Error('Failed to fetch shipments');
-            }
+            if (!response.ok) return utils.handleApiError(response);
+            return await response.json();
+        },
+
+        // Create new shipment
+        create: async (data) => {
+            const response = await fetch('/api/shipments', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
             
-            const result = await response.json();
-            return result.data || [];
-        } catch (error) {
-            console.error('Error loading shipments:', error);
-            utils.showAlert('Error loading shipments. Please try again.', 'error');
-            return [];
-        }
-    }
+            if (!response.ok) return utils.handleApiError(response);
+            return await response.json();
+        },
 
-    async function renderShipments(searchTerm = '') {
-        const tableBody = document.querySelector('#shipmentsTable tbody');
-        if (!tableBody) return;
+        // Update shipment
+        update: async (trackingNumber, data) => {
+            const response = await fetch(`/api/shipments/${trackingNumber}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (!response.ok) return utils.handleApiError(response);
+            return await response.json();
+        },
 
-        // Show loading state
-        tableBody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading shipments...</td></tr>';
-        
-        const shipments = await loadShipments(searchTerm);
-
-        if (shipments.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No shipments found</td></tr>';
-            return;
-        }
-
-        // Sort by last updated (newest first)
-        shipments.sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-        
-        // Clear and rebuild table
-        tableBody.innerHTML = '';
-        
-        shipments.forEach(shipment => {
-            const row = document.createElement('tr');
-            row.innerHTML = `
-                <td>${shipment.tracking_number}</td>
-                <td>${shipment.customer_name}</td>
-                <td><span class="status-badge ${utils.getStatusClass(shipment.status)}">${shipment.status}</span></td>
-                <td>${shipment.current_city}</td>
-                <td>${utils.formatDate(shipment.updatedAt)}</td>
-                <td>
-                    <button class="action-btn" data-id="${shipment._id}">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="action-btn btn-edit" data-id="${shipment._id}">
-                        <i class="fas fa-edit"></i>
-                    </button>
-                </td>
-            `;
-            tableBody.appendChild(row);
-        });
-
-        // Add event listeners to edit buttons
-        document.querySelectorAll('.btn-edit').forEach(btn => {
-            btn.addEventListener('click', () => openEditModal(btn.dataset.id));
-        });
-    }
-
-    async function openEditModal(shipmentId) {
-        try {
-            const response = await fetch(`/api/shipments/${shipmentId}`, {
+        // Delete shipment
+        delete: async (trackingNumber) => {
+            const response = await fetch(`/api/shipments/${trackingNumber}`, {
+                method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
             
-            const result = await response.json();
-            const shipment = result.data;
+            if (!response.ok) return utils.handleApiError(response);
+            return await response.json();
+        }
+    };
+
+    // 6. UI Rendering Functions
+    const renderUI = {
+        // Render shipments table
+        shipments: async (search = '') => {
+            const tableBody = document.querySelector('#shipmentsTable tbody');
+            tableBody.innerHTML = '<tr><td colspan="6" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
             
-            if (response.ok) {
+            try {
+                const { data: shipments } = await shipmentAPI.fetchAll(search);
+                
+                if (!shipments || shipments.length === 0) {
+                    tableBody.innerHTML = '<tr><td colspan="6" class="text-center">No shipments found</td></tr>';
+                    return;
+                }
+
+                tableBody.innerHTML = shipments
+                    .sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt))
+                    .map(shipment => `
+                        <tr>
+                            <td>${shipment.tracking_number}</td>
+                            <td>${shipment.customer_name}</td>
+                            <td><span class="status-badge ${utils.getStatusClass(shipment.status)}">${shipment.status}</span></td>
+                            <td>${shipment.current_city}</td>
+                            <td>${utils.formatDate(shipment.updatedAt)}</td>
+                            <td>
+                                <button class="action-btn btn-edit" data-id="${shipment._id}">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+
+                // Attach edit event listeners
+                document.querySelectorAll('.btn-edit').forEach(btn => {
+                    btn.addEventListener('click', () => renderUI.openEditModal(btn.dataset.id));
+                });
+
+            } catch (error) {
+                utils.showAlert(error.message, 'error');
+            }
+        },
+
+        // Update statistics
+        stats: async () => {
+            try {
+                const { data: shipments } = await shipmentAPI.fetchAll();
+                const today = new Date().toDateString();
+                
+                elements.stats.total.textContent = shipments.length;
+                elements.stats.inTransit.textContent = shipments.filter(s => s.status === 'In Transit').length;
+                elements.stats.deliveredToday.textContent = shipments.filter(s => 
+                    s.status === 'Delivered' && new Date(s.updatedAt).toDateString() === today
+                ).length;
+                elements.stats.pending.textContent = shipments.filter(s => 
+                    ['Booked', 'Out for Delivery'].includes(s.status)
+                ).length;
+            } catch (error) {
+                console.error('Stats update error:', error);
+            }
+        },
+
+        // Open edit modal with shipment data
+        openEditModal: async (shipmentId) => {
+            try {
+                const response = await fetch(`/api/shipments/${shipmentId}`, {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                
+                if (!response.ok) return utils.handleApiError(response);
+                
+                const { data: shipment } = await response.json();
+                
                 document.getElementById('editTrackingNumber').value = shipment.tracking_number;
                 document.getElementById('editCustomerName').textContent = shipment.customer_name;
                 document.getElementById('editRoute').textContent = `${shipment.origin} to ${shipment.destination}`;
@@ -194,185 +230,154 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('editCurrentCity').value = shipment.current_city;
                 document.getElementById('editNotes').value = '';
                 
-                elements.editShipmentModal.style.display = 'flex';
-            } else {
-                throw new Error(result.message || 'Failed to load shipment');
-            }
-        } catch (error) {
-            console.error('Error opening edit modal:', error);
-            utils.showAlert(error.message || 'Failed to load shipment details', 'error');
-        }
-    }
+                elements.modals.edit.style.display = 'flex';
 
-    // Stats functions
-    async function updateStats() {
-        try {
-            const shipments = await loadShipments();
-            const today = new Date().toDateString();
-            
-            document.getElementById('totalShipments').textContent = shipments.length;
-            document.getElementById('inTransit').textContent = shipments.filter(s => s.status === 'In Transit').length;
-            document.getElementById('deliveredToday').textContent = shipments.filter(s => 
-                s.status === 'Delivered' && new Date(s.updatedAt).toDateString() === today
-            ).length;
-            document.getElementById('pendingActions').textContent = shipments.filter(s => 
-                ['Booked', 'Out for Delivery'].includes(s.status)
-            ).length;
-        } catch (error) {
-            console.error('Error updating stats:', error);
-        }
-    }
-
-    // Form handlers
-    if (elements.addShipmentForm) {
-        elements.addShipmentForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const newShipment = {
-                tracking_number: document.getElementById('trackingNumber').value,
-                customer_name: document.getElementById('customerName').value,
-                customer_phone: document.getElementById('customerPhone').value,
-                origin: document.getElementById('origin').value,
-                destination: document.getElementById('destination').value,
-                status: document.getElementById('status').value,
-                current_city: document.getElementById('currentCity').value,
-                shipment_details: document.getElementById('shipmentDetails').value,
-                weight: document.getElementById('weight').value
-            };
-            
-            try {
-                const response = await fetch('/api/shipments', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(newShipment)
-                });
-                
-                const result = await response.json();
-                
-                if (response.ok) {
-                    this.reset();
-                    elements.addShipmentModal.style.display = 'none';
-                    utils.showAlert('Shipment added successfully!', 'success');
-                    
-                    // Emit socket event
-                    socket.emit('new-shipment', result.data);
-                } else {
-                    throw new Error(result.message || 'Failed to add shipment');
-                }
             } catch (error) {
-                console.error('Error adding shipment:', error);
-                utils.showAlert(error.message || 'Failed to add shipment', 'error');
+                utils.showAlert(error.message, 'error');
+            }
+        }
+    };
+
+    // 7. Event Handlers
+    const setupEventHandlers = () => {
+        // Modal Controls
+        document.querySelectorAll('.close-modal').forEach(btn => {
+            btn.addEventListener('click', () => {
+                elements.modals.add.style.display = 'none';
+                elements.modals.edit.style.display = 'none';
+            });
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === elements.modals.add || e.target === elements.modals.edit) {
+                elements.modals.add.style.display = 'none';
+                elements.modals.edit.style.display = 'none';
             }
         });
-    }
 
-    if (elements.editShipmentForm) {
-        elements.editShipmentForm.addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const trackingNumber = document.getElementById('editTrackingNumber').value;
-            const updateData = {
-                status: document.getElementById('editStatus').value,
-                current_city: document.getElementById('editCurrentCity').value,
-                notes: document.getElementById('editNotes').value
-            };
-            
-            try {
-                const response = await fetch(`/api/shipments/${trackingNumber}`, {
-                    method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify(updateData)
-                });
+        // Add Shipment
+        if (elements.buttons.add) {
+            elements.buttons.add.addEventListener('click', () => {
+                elements.modals.add.style.display = 'flex';
+                document.getElementById('trackingNumber').value = 'MCL' + 
+                    Math.floor(100000000 + Math.random() * 900000000);
+            });
+        }
+
+        // Form Submissions
+        if (elements.forms.add) {
+            elements.forms.add.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(e.target);
+                const shipmentData = Object.fromEntries(formData.entries());
                 
-                const result = await response.json();
+                try {
+                    const { data } = await shipmentAPI.create(shipmentData);
+                    e.target.reset();
+                    elements.modals.add.style.display = 'none';
+                    utils.showAlert('Shipment created successfully!', 'success');
+                    socket.emit('shipment-update', { action: 'created', shipment: data });
+                } catch (error) {
+                    utils.showAlert(error.message, 'error');
+                }
+            });
+        }
+
+        if (elements.forms.edit) {
+            elements.forms.edit.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const trackingNumber = document.getElementById('editTrackingNumber').value;
+                const updateData = {
+                    status: document.getElementById('editStatus').value,
+                    current_city: document.getElementById('editCurrentCity').value,
+                    notes: document.getElementById('editNotes').value
+                };
                 
-                if (response.ok) {
-                    elements.editShipmentModal.style.display = 'none';
+                try {
+                    const { data } = await shipmentAPI.update(trackingNumber, updateData);
+                    elements.modals.edit.style.display = 'none';
                     utils.showAlert('Shipment updated successfully!', 'success');
-                    
-                    // Emit socket event
-                    socket.emit('update-shipment', {
-                        action: 'updated',
-                        shipment: result.data
-                    });
-                } else {
-                    throw new Error(result.message || 'Failed to update shipment');
+                    socket.emit('shipment-update', { action: 'updated', shipment: data });
+                } catch (error) {
+                    utils.showAlert(error.message, 'error');
                 }
-            } catch (error) {
-                console.error('Error updating shipment:', error);
-                utils.showAlert(error.message || 'Failed to update shipment', 'error');
-            }
-        });
-    }
+            });
+        }
 
-    if (elements.cancelShipmentBtn) {
-        elements.cancelShipmentBtn.addEventListener('click', async function() {
-            const trackingNumber = document.getElementById('editTrackingNumber').value;
-            if (!confirm('Are you sure you want to cancel this shipment?')) return;
-            
-            try {
-                const response = await fetch(`/api/shipments/${trackingNumber}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+        // Cancel Shipment
+        if (elements.buttons.cancel) {
+            elements.buttons.cancel.addEventListener('click', async () => {
+                const trackingNumber = document.getElementById('editTrackingNumber').value;
+                if (!confirm('Are you sure you want to cancel this shipment?')) return;
                 
-                const result = await response.json();
-                
-                if (response.ok) {
-                    elements.editShipmentModal.style.display = 'none';
+                try {
+                    const { data } = await shipmentAPI.delete(trackingNumber);
+                    elements.modals.edit.style.display = 'none';
                     utils.showAlert('Shipment cancelled successfully!', 'success');
-                    
-                    // Emit socket event
-                    socket.emit('update-shipment', {
-                        action: 'cancelled',
-                        shipment: result.data
-                    });
-                } else {
-                    throw new Error(result.message || 'Failed to cancel shipment');
+                    socket.emit('shipment-update', { action: 'cancelled', shipment: data });
+                } catch (error) {
+                    utils.showAlert(error.message, 'error');
                 }
-            } catch (error) {
-                console.error('Error cancelling shipment:', error);
-                utils.showAlert(error.message || 'Failed to cancel shipment', 'error');
-            }
-        });
-    }
+            });
+        }
 
-    // Search functionality
-    if (elements.searchInput) {
-        elements.searchInput.addEventListener('input', utils.debounce(async (e) => {
-            await renderShipments(e.target.value);
-        }, 300));
-    }
+        // Search Functionality
+        if (elements.inputs.search) {
+            elements.inputs.search.addEventListener('input', (e) => {
+                renderUI.shipments(e.target.value);
+            });
+        }
 
-    // Refresh button
-    if (elements.refreshBtn) {
-        elements.refreshBtn.addEventListener('click', async () => {
-            await renderShipments();
-            await updateStats();
-            utils.showAlert('Shipments refreshed', 'success');
-        });
-    }
+        // Refresh Button
+        if (elements.buttons.refresh) {
+            elements.buttons.refresh.addEventListener('click', () => {
+                renderUI.shipments();
+                renderUI.stats();
+                utils.showAlert('Data refreshed', 'success');
+            });
+        }
 
-    // Logout
-    if (elements.logoutBtn) {
-        elements.logoutBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to logout?')) {
-                localStorage.removeItem('adminToken');
-                window.location.href = 'login.html';
-            }
-        });
-    }
+        // Logout
+        if (elements.buttons.logout) {
+            elements.buttons.logout.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('adminToken');
+                    window.location.href = '/admin/login.html';
+                }
+            });
+        }
+    };
 
-    // Initialize dashboard
-    renderShipments();
-    updateStats();
+    // 8. Real-time Updates
+    socket.on('shipment-update', (data) => {
+        if (['created', 'updated', 'cancelled'].includes(data.action)) {
+            renderUI.shipments();
+            renderUI.stats();
+            utils.showAlert(`Shipment ${data.shipment.tracking_number} was ${data.action}`, 'info');
+        }
+    });
+
+    // 9. Initialize Dashboard
+    const initDashboard = async () => {
+        try {
+            // Verify token with backend
+            const response = await fetch('/api/auth/verify', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            
+            if (!response.ok) return utils.handleApiError(response);
+            
+            // Initialize UI
+            setupEventHandlers();
+            await renderUI.shipments();
+            await renderUI.stats();
+            
+        } catch (error) {
+            utils.showAlert(error.message, 'error');
+        }
+    };
+
+    // Start the dashboard
+    initDashboard();
 });
