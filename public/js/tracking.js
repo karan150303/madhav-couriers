@@ -2,9 +2,9 @@
 const socket = io();
 
 // Track form submission
-document.getElementById('trackForm')?.addEventListener('submit', async function(e) {
+document.getElementById('trackForm')?.addEventListener('submit', async function (e) {
   e.preventDefault();
-  
+
   const trackResult = document.getElementById('trackResult');
   const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
 
@@ -22,17 +22,15 @@ document.getElementById('trackForm')?.addEventListener('submit', async function(
   socket.emit('subscribe-to-tracking', trackingNumber);
 
   try {
-    // Fetch shipment data
-    const response = await fetch(`/api/shipments/${trackingNumber}`, {
-      headers: {
-        'Cache-Control': 'no-cache'
-      }
+    // ✅ Fixed tracking endpoint
+    const response = await fetch(`/api/shipments/track/${trackingNumber}`, {
+      headers: { 'Cache-Control': 'no-cache' }
     });
-    
+
     if (!response.ok) throw new Error('Network error');
-    
+
     const result = await response.json();
-    
+
     if (result.success && result.data) {
       displayShipment(result.data);
     } else {
@@ -44,7 +42,7 @@ document.getElementById('trackForm')?.addEventListener('submit', async function(
   }
 });
 
-// Listen for real-time updates
+// Real-time shipment updates
 socket.on('tracking-update', (data) => {
   if (data?.action === 'updated' && data.shipment) {
     displayShipment(data.shipment);
@@ -61,35 +59,17 @@ function displayShipment(shipment) {
     <div class="tracking-result">
       <h4>Tracking Results: ${shipment.tracking_number}</h4>
       <div class="tracking-card">
-        <div class="tracking-row">
-          <span>Status:</span>
-          <span class="status-badge ${statusClass}">${shipment.status}</span>
-        </div>
-        <div class="tracking-row">
-          <span>Customer:</span>
-          <span>${shipment.customer_name}</span>
-        </div>
-        <div class="tracking-row">
-          <span>From:</span>
-          <span>${shipment.origin}</span>
-        </div>
-        <div class="tracking-row">
-          <span>To:</span>
-          <span>${shipment.destination}</span>
-        </div>
-        <div class="tracking-row">
-          <span>Current Location:</span>
-          <span>${shipment.current_city}</span>
-        </div>
-        <div class="tracking-row">
-          <span>Last Update:</span>
-          <span>${updatedDate}</span>
-        </div>
+        <div class="tracking-row"><span>Status:</span><span class="status-badge ${statusClass}">${shipment.status}</span></div>
+        <div class="tracking-row"><span>Customer:</span><span>${shipment.customer_name}</span></div>
+        <div class="tracking-row"><span>From:</span><span>${shipment.origin}</span></div>
+        <div class="tracking-row"><span>To:</span><span>${shipment.destination}</span></div>
+        <div class="tracking-row"><span>Current Location:</span><span>${shipment.current_city}</span></div>
+        <div class="tracking-row"><span>Last Update:</span><span>${updatedDate}</span></div>
         ${shipment.shipment_details ? `
-        <div class="tracking-details">
-          <strong>Details:</strong>
-          <p>${shipment.shipment_details}</p>
-        </div>` : ''}
+          <div class="tracking-details">
+            <strong>Details:</strong>
+            <p>${shipment.shipment_details}</p>
+          </div>` : ''}
       </div>
     </div>
   `;
@@ -109,7 +89,7 @@ function getStatusClass(status) {
 
 // Error handling
 function showValidationError() {
-  showError('Invalid tracking number format. Please use MCL followed by 9 digits (e.g. MCL123456789)');
+  showError('Invalid tracking number format. Use MCL followed by 9 digits (e.g. MCL123456789)');
 }
 
 function showNotFoundError(trackingNumber) {
@@ -135,11 +115,9 @@ function showError(message) {
 function showNotification(message) {
   const notification = document.createElement('div');
   notification.className = 'tracking-notification';
-  notification.innerHTML = `
-    <i class="fas fa-sync-alt"></i> ${message}
-  `;
+  notification.innerHTML = `<i class="fas fa-sync-alt"></i> ${message}`;
   document.body.appendChild(notification);
-  
+
   setTimeout(() => {
     notification.classList.add('fade-out');
     setTimeout(() => notification.remove(), 500);
