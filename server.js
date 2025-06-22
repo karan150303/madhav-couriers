@@ -17,14 +17,12 @@ const mongoose = require('mongoose');
 
 const app = express();
 
-// Logger
 const logger = {
   info: (...args) => console.log('[INFO]', ...args),
   error: (...args) => console.error('[ERROR]', ...args),
   warn: (...args) => console.warn('[WARN]', ...args)
 };
 
-// CSRF Setup
 const {
   generateToken,
   validateRequest,
@@ -49,7 +47,6 @@ const csrfProtection = (req, res, next) => {
   next();
 };
 
-// Helmet Security
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -70,7 +67,6 @@ app.use(helmet({
   }
 }));
 
-// Force HTTPS in Production
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.header('x-forwarded-proto') !== 'https') {
@@ -80,7 +76,6 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// CORS
 app.use(cors({
   origin: process.env.NODE_ENV === 'production'
     ? ['https://madhavcouriers.in', 'https://www.madhavcouriers.in']
@@ -90,7 +85,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 
-// Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 100 : 200,
@@ -102,7 +96,6 @@ const apiLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// Server and Socket.IO Setup
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -120,7 +113,6 @@ const io = new Server(server, {
 app.set('io', io);
 app.set('trust proxy', 1);
 
-// Middleware
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -128,7 +120,6 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(mongoSanitize());
 app.use(hpp());
 
-// Serve static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0',
   setHeaders: (res, path) => {
@@ -138,7 +129,6 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// MongoDB Connection
 const connectDB = async () => {
   try {
     const mongoUri = process.env.MONGODB_URI;
@@ -162,7 +152,6 @@ const connectDB = async () => {
 };
 connectDB();
 
-// Admin Auth Middleware
 const authenticateAdmin = (req, res, next) => {
   const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
   if (!token) return res.redirect('/admin/login.html');
@@ -175,11 +164,10 @@ const authenticateAdmin = (req, res, next) => {
   }
 };
 
-// API Routes
+// Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
-// Health Check
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
@@ -190,7 +178,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Frontend Routes
+// Static public frontend routes
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
     res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
@@ -202,7 +190,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Admin Login Page
+// ✅ Make login page public (UNPROTECTED)
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
     secure: process.env.NODE_ENV === 'production',
@@ -211,18 +199,18 @@ app.get('/admin/login', csrfProtection, (req, res) => {
   });
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
+app.use('/admin/login.html', express.static(path.join(__dirname, 'admin', 'login.html')));
+app.use('/admin/login.js', express.static(path.join(__dirname, 'admin', 'login.js')));
 
-// Admin Panel (Protected)
+// ✅ Protect admin pages only after login
 app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
 }));
 
-// Example POST route
 app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
   res.json({ status: 'success', message: 'Form submitted successfully' });
 });
 
-// 404 Page
 app.use((req, res) => {
   const errorPage = path.join(__dirname, 'public', '404.html');
   fs.existsSync(errorPage)
@@ -230,7 +218,6 @@ app.use((req, res) => {
     : res.status(404).json({ status: 'error', message: 'Not found' });
 });
 
-// Global Error Handler
 app.use((err, req, res, next) => {
   logger.error('Server error:', err);
 
@@ -250,7 +237,6 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json(errorResponse);
 });
 
-// Server Startup
 const PORT = process.env.PORT || 3000;
 
 process.on('SIGTERM', async () => {
