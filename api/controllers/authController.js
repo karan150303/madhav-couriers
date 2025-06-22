@@ -1,8 +1,8 @@
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto'); // Added for token generation
 const Admin = require('../models/admin');
 
 module.exports = {
-  // Authentication middleware
   authenticate: async (req, res, next) => {
     try {
       // Get token from header or cookie
@@ -34,23 +34,24 @@ module.exports = {
         });
       }
 
+      // Check if password was changed after token was issued
+      if (admin.passwordChangedAt && decoded.iat * 1000 < admin.passwordChangedAt) {
+        return res.status(401).json({
+          success: false,
+          code: 'PASSWORD_CHANGED',
+          message: 'Password was changed. Please log in again'
+        });
+      }
+
       // Token renewal if expiring soon (within 15 minutes)
       if (decoded.exp - Date.now() / 1000 < 900) {
-        const newToken = jwt.sign(
-          {
-            _id: admin._id,
-            role: 'admin',
-            username: admin.username
-          },
-          process.env.JWT_SECRET,
-          { expiresIn: process.env.JWT_EXPIRE || '1h' }
-        );
-
+        const newToken = admin.generateAuthToken();
+        
         res.cookie('token', newToken, {
           httpOnly: true,
           secure: process.env.NODE_ENV === 'production',
           sameSite: 'strict',
-          maxAge: 3600000
+          maxAge: parseInt(process.env.JWT_EXPIRE) * 1000 || 3600000
         });
 
         req.token = newToken;
@@ -91,10 +92,9 @@ module.exports = {
     }
   },
 
-  // Role-based access control
   requireRole: (role) => {
     return (req, res, next) => {
-      if (req.user?.role !== role) {
+      if (!req.user?.role || req.user.role !== role) {
         return res.status(403).json({
           success: false,
           code: 'FORBIDDEN',
@@ -105,11 +105,10 @@ module.exports = {
     };
   },
 
-  // CSRF protection middleware
   csrfProtection: (req, res, next) => {
-    if (['POST', 'PUT', 'DELETE'].includes(req.method)) {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(req.method)) {
       const csrfToken = req.headers['x-csrf-token'] || req.body._csrf;
-      if (!csrfToken || csrfToken !== req.cookies._csrf) {
+      if (!csrfToken || csrfToken !== req.csrfToken()) {
         return res.status(403).json({
           success: false,
           code: 'CSRF_FAILED',
@@ -117,6 +116,11 @@ module.exports = {
         });
       }
     }
+    next();
+  },
+
+  generateCSRFToken: (req, res, next) => {
+    res.locals.csrfToken = req.csrfToken();
     next();
   }
 };
