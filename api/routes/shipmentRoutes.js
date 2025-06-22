@@ -216,4 +216,33 @@ router.get('/:id/history', authMiddleware, async (req, res) => {
   }
 });
 
+// PUBLIC TRACK SHIPMENT ROUTE ✅
+router.get('/track/:tracking_number', async (req, res) => {
+  try {
+    const shipment = await Shipment.findOne(
+      { tracking_number: req.params.tracking_number },
+      '-__v -createdBy -updatedBy'
+    ).lean();
+
+    if (!shipment) {
+      return res.status(404).json({
+        success: false,
+        message: 'Shipment not found'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: shipment
+    });
+
+  } catch (err) {
+    console.error('Tracking error:', err.message);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
 module.exports = router;
