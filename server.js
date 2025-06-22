@@ -52,8 +52,17 @@ app.use(helmet({
     directives: {
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "https://madhavcouriers.in"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
-      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      styleSrc: [
+        "'self'",
+        "'unsafe-inline'",
+        "https://fonts.googleapis.com",
+        "https://cdnjs.cloudflare.com" // ✅ Added for Font Awesome CSS
+      ],
+      fontSrc: [
+        "'self'",
+        "https://fonts.gstatic.com",
+        "https://cdnjs.cloudflare.com" // ✅ Added for Font Awesome fonts
+      ],
       imgSrc: ["'self'", "data:", "https://madhavcouriers.in"],
       connectSrc: ["'self'", "https://madhavcouriers.in", "wss://madhavcouriers.in"],
       frameSrc: ["'self'"],
