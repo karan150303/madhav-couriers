@@ -1,4 +1,3 @@
-// Mobile menu toggle functionality
 document.addEventListener('DOMContentLoaded', function () {
   const mobileMenuBtn = document.querySelector('.mobile-menu');
   const nav = document.querySelector('nav');
@@ -11,68 +10,93 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ======= TRACKING FUNCTIONALITY ======= //
 
-  // Connect to Socket.io
   const socket = io();
 
-  // Track shipment form submission
-  const trackForm = document.getElementById('trackingForm');
+  const trackForm = document.getElementById('trackForm'); // ✅ fixed ID
+  const trackingInput = document.getElementById('trackingNumber');
+  const resultDiv = document.getElementById('trackResult'); // ✅ fixed
+
   if (trackForm) {
     trackForm.addEventListener('submit', async function (e) {
       e.preventDefault();
-      const trackingNumber = document.getElementById('trackingNumber').value.trim();
+      const trackingNumber = trackingInput.value.trim().toUpperCase();
+
+      resultDiv.innerHTML = '';
+      resultDiv.style.display = 'none';
+
+      if (!/^MCL\d{9}$/.test(trackingNumber)) {
+        displayError('Invalid tracking number format. Use MCL followed by 9 digits.');
+        return;
+      }
+
+      socket.emit('subscribe-to-tracking', trackingNumber);
 
       try {
-        const response = await fetch(`/api/shipments/track/${trackingNumber}`);
+        const response = await fetch(`/api/shipments/track/${trackingNumber}`, {
+          headers: { 'Cache-Control': 'no-cache' }
+        });
+
         const data = await response.json();
 
         if (data.success) {
           displayTrackingResult(data.data);
         } else {
-          displayTrackingError(data.message || 'Shipment not found');
+          displayError(data.message || 'Shipment not found');
         }
       } catch (err) {
-        displayTrackingError('Network error. Please try again.');
+        displayError('Network error. Please try again.');
       }
     });
   }
 
-  // Real-time shipment updates
-  socket.on('shipment-update', (data) => {
-    if (data.action === 'created' || data.action === 'updated') {
-      if (window.location.pathname === '/') {
-        updateTrackingDisplay(data.shipment);
+  socket.on('tracking-update', (data) => {
+    if (data.action === 'updated') {
+      const currentTrackingNum = trackingInput?.value.trim().toUpperCase();
+      if (currentTrackingNum === data.shipment.tracking_number) {
+        displayTrackingResult(data.shipment);
+        showNotification('Shipment status updated!');
       }
     }
   });
 
-  // Display tracking result
   function displayTrackingResult(shipment) {
-    const resultDiv = document.getElementById('tracking-result');
-    if (resultDiv) {
-      resultDiv.innerHTML = `
-        <div class="tracking-details">
-          <h3>Tracking #${shipment.tracking_number}</h3>
-          <p><strong>Status:</strong> <span class="status">${shipment.status}</span></p>
-          <p><strong>Location:</strong> ${shipment.current_city}</p>
-          <p><strong>Last Updated:</strong> ${new Date(shipment.lastUpdated).toLocaleString()}</p>
-        </div>
-      `;
-    }
+    const updatedDate = new Date(shipment.updatedAt || shipment.createdAt).toLocaleString();
+    const statusClass = getStatusClass(shipment.status);
+
+    resultDiv.innerHTML = `
+      <div class="tracking-details">
+        <h3>Tracking #${shipment.tracking_number}</h3>
+        <p><strong>Status:</strong> <span class="status-badge ${statusClass}">${shipment.status}</span></p>
+        <p><strong>Location:</strong> ${shipment.current_city}</p>
+        <p><strong>Last Updated:</strong> ${updatedDate}</p>
+      </div>
+    `;
+    resultDiv.style.display = 'block';
   }
 
-  // Display error
-  function displayTrackingError(message) {
-    const resultDiv = document.getElementById('tracking-result');
-    if (resultDiv) {
-      resultDiv.innerHTML = `<div class="error">${message}</div>`;
-    }
+  function displayError(message) {
+    resultDiv.innerHTML = `<div class="error">${message}</div>`;
+    resultDiv.style.display = 'block';
   }
 
-  // Update tracking UI in real time if user is viewing that shipment
-  function updateTrackingDisplay(shipment) {
-    const currentTrackingNum = document.getElementById('trackingNumber')?.value.trim();
-    if (currentTrackingNum === shipment.tracking_number) {
-      displayTrackingResult(shipment);
-    }
+  function showNotification(message) {
+    const note = document.createElement('div');
+    note.className = 'tracking-notification';
+    note.innerHTML = `<i class="fas fa-sync-alt"></i> ${message}`;
+    document.body.appendChild(note);
+    setTimeout(() => {
+      note.classList.add('fade-out');
+      setTimeout(() => note.remove(), 500);
+    }, 3000);
+  }
+
+  function getStatusClass(status) {
+    const map = {
+      'Booked': 'status-booked',
+      'In Transit': 'status-transit',
+      'Out for Delivery': 'status-out',
+      'Delivered': 'status-delivered'
+    };
+    return map[status] || '';
   }
 });
