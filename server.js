@@ -13,20 +13,18 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const { doubleCsrf } = require('csrf-csrf');
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose'); // Added mongoose import
+const mongoose = require('mongoose');
 
-// Initialize logger
+const app = express();
+
+// Logger
 const logger = {
   info: (...args) => console.log('[INFO]', ...args),
   error: (...args) => console.error('[ERROR]', ...args),
   warn: (...args) => console.warn('[WARN]', ...args)
 };
 
-const app = express();
-
-/* ====================== */
-/* CSRF PROTECTION SETUP  */
-/* ====================== */
+// CSRF Setup
 const {
   generateToken,
   validateRequest,
@@ -45,16 +43,13 @@ const {
   getTokenFromRequest: (req) => req.headers['x-csrf-token']
 });
 
-// CSRF protection middleware
 const csrfProtection = (req, res, next) => {
   const token = generateToken(res);
   res.locals.csrfToken = token;
   next();
 };
 
-/* ====================== */
-/* SECURITY CONFIGURATION */
-/* ====================== */
+// Helmet Security
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -75,7 +70,7 @@ app.use(helmet({
   }
 }));
 
-// Redirect HTTP to HTTPS in production
+// Force HTTPS in Production
 if (process.env.NODE_ENV === 'production') {
   app.use((req, res, next) => {
     if (req.header('x-forwarded-proto') !== 'https') {
@@ -85,9 +80,9 @@ if (process.env.NODE_ENV === 'production') {
   });
 }
 
-// CORS Configuration
+// CORS
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
+  origin: process.env.NODE_ENV === 'production'
     ? ['https://madhavcouriers.in', 'https://www.madhavcouriers.in']
     : ['http://localhost:3000'],
   credentials: true,
@@ -95,7 +90,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token']
 }));
 
-// Rate limiting
+// Rate Limiting
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: process.env.NODE_ENV === 'production' ? 100 : 200,
@@ -107,9 +102,7 @@ const apiLimiter = rateLimit({
   legacyHeaders: false
 });
 
-/* ====================== */
-/* SERVER & SOCKET SETUP  */
-/* ====================== */
+// Server and Socket.IO Setup
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -124,13 +117,10 @@ const io = new Server(server, {
     skipMiddlewares: true
   }
 });
-
 app.set('io', io);
 app.set('trust proxy', 1);
 
-/* ====================== */
-/* APPLICATION MIDDLEWARE */
-/* ====================== */
+// Middleware
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -138,7 +128,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(mongoSanitize());
 app.use(hpp());
 
-// Static files
+// Serve static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0',
   setHeaders: (res, path) => {
@@ -148,15 +138,11 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-/* ====================== */
-/* DATABASE CONNECTION    */
-/* ====================== */
+// MongoDB Connection
 const connectDB = async () => {
   try {
     const mongoUri = process.env.MONGODB_URI;
-    if (!mongoUri) {
-      throw new Error('MONGODB_URI not set in environment variables');
-    }
+    if (!mongoUri) throw new Error('MONGODB_URI not set in environment variables');
 
     await mongoose.connect(mongoUri, {
       serverSelectionTimeoutMS: 5000,
@@ -164,53 +150,39 @@ const connectDB = async () => {
     });
 
     logger.info('✅ MongoDB connected successfully');
-    
-    mongoose.connection.on('connected', () => {
-      logger.info('MongoDB connection active');
-    });
-    
-    mongoose.connection.on('error', (err) => {
-      logger.error('MongoDB connection error:', err);
-    });
-    
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('MongoDB disconnected');
-    });
+
+    mongoose.connection.on('connected', () => logger.info('MongoDB connection active'));
+    mongoose.connection.on('error', err => logger.error('MongoDB error:', err));
+    mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'));
+
   } catch (err) {
     logger.error('❌ MongoDB connection failed:', err.message);
     process.exit(1);
   }
 };
-// Connect to database
 connectDB();
 
-// Admin authentication middleware
+// Admin Auth Middleware
 const authenticateAdmin = (req, res, next) => {
   const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
-  
-  if (!token) {
-    return res.redirect('/admin/login.html');
-  }
+  if (!token) return res.redirect('/admin/login.html');
 
   try {
     jwt.verify(token, process.env.JWT_SECRET);
     next();
-  } catch (err) {
-    res.redirect('/admin/login.html');
+  } catch {
+    return res.redirect('/admin/login.html');
   }
 };
 
-/* ====================== */
-/* ROUTES                 */
-/* ====================== */
 // API Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
-// Health check endpoint
-app.get('/health', async (req, res) => {
+// Health Check
+app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.status(200).json({ 
+  res.status(200).json({
     status: 'ok',
     uptime: process.uptime(),
     database: dbStatus,
@@ -218,7 +190,7 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// Frontend routes
+// Frontend Routes
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
     res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
@@ -230,11 +202,7 @@ app.get('/health', async (req, res) => {
   });
 });
 
-// Admin routes
-app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
-  maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
-}));
-
+// Admin Login Page
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
     secure: process.env.NODE_ENV === 'production',
@@ -244,29 +212,33 @@ app.get('/admin/login', csrfProtection, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
 
-// Example protected POST route
+// Admin Panel (Protected)
+app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
+}));
+
+// Example POST route
 app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
   res.json({ status: 'success', message: 'Form submitted successfully' });
 });
 
-/* ====================== */
-/* ERROR HANDLING         */
-/* ====================== */
-app.use((req, res, next) => {
-  const errorPagePath = path.join(__dirname, 'public', '404.html');
-  fs.existsSync(errorPagePath) 
-    ? res.status(404).sendFile(errorPagePath)
+// 404 Page
+app.use((req, res) => {
+  const errorPage = path.join(__dirname, 'public', '404.html');
+  fs.existsSync(errorPage)
+    ? res.status(404).sendFile(errorPage)
     : res.status(404).json({ status: 'error', message: 'Not found' });
 });
 
+// Global Error Handler
 app.use((err, req, res, next) => {
   logger.error('Server error:', err);
-  
+
   const errorResponse = {
     status: 'error',
     code: err.code || 'SERVER_ERROR',
-    message: process.env.NODE_ENV === 'production' 
-      ? 'Internal server error' 
+    message: process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
       : err.message
   };
 
@@ -278,14 +250,11 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json(errorResponse);
 });
 
-/* ====================== */
-/* SERVER STARTUP         */
-/* ====================== */
+// Server Startup
 const PORT = process.env.PORT || 3000;
 
-// Graceful shutdown
 process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received. Shutting down gracefully...');
+  logger.info('SIGTERM received. Shutting down...');
   await mongoose.disconnect();
   server.close(() => {
     logger.info('Server terminated');
@@ -294,7 +263,7 @@ process.on('SIGTERM', async () => {
 });
 
 process.on('SIGINT', async () => {
-  logger.info('SIGINT received. Shutting down gracefully...');
+  logger.info('SIGINT received. Shutting down...');
   await mongoose.disconnect();
   server.close(() => {
     logger.info('Server terminated');
@@ -303,6 +272,6 @@ process.on('SIGINT', async () => {
 });
 
 server.listen(PORT, () => {
-  logger.info(`Server running on port ${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`🚀 Server running on port ${PORT}`);
+  logger.info(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
