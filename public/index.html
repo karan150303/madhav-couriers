@@ -635,11 +635,12 @@ document.getElementById('trackForm').addEventListener('submit', async function(e
 
   try {
     // Fetch shipment data
-    const response = await fetch(`/api/shipments/${trackingNumber}`, {
-      headers: {
-        'Cache-Control': 'no-cache'
-      }
-    });
+    const response = await fetch(`/api/shipments/track/${trackingNumber}`, {
+     headers: {
+    'Cache-Control': 'no-cache'
+   }
+   });
+
     
     if (!response.ok) throw new Error('Network error');
     
