@@ -153,9 +153,13 @@ app.use(express.static(path.join(__dirname, 'public'), {
 /* ====================== */
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/madhav-couriers', {
-      useNewUrlParser: true,
-      useUnifiedTopology: true
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI environment variable not set');
+    }
+    
+    await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000, // 5 second timeout
+      socketTimeoutMS: 45000, // 45 second socket timeout
     });
     
     logger.info('MongoDB connection established');
@@ -176,7 +180,6 @@ const connectDB = async () => {
     process.exit(1);
   }
 };
-
 // Connect to database
 connectDB();
 
