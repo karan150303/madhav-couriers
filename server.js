@@ -15,15 +15,22 @@ const { doubleCsrf } = require('csrf-csrf');
 const jwt = require('jsonwebtoken');
 const db = require('./config/db.config');
 
+// Initialize logger (added this)
+const logger = {
+  info: (...args) => console.log('[INFO]', ...args),
+  error: (...args) => console.error('[ERROR]', ...args),
+  warn: (...args) => console.warn('[WARN]', ...args)
+};
+
 const app = express();
 
 /* ====================== */
 /* CSRF PROTECTION SETUP  */
 /* ====================== */
 const {
-  generateToken, // Use this to generate tokens
-  validateRequest, // Use this to validate requests
-  doubleCsrfProtection // Use this as middleware
+  generateToken,
+  validateRequest,
+  doubleCsrfProtection
 } = doubleCsrf({
   getSecret: () => process.env.CSRF_SECRET || 'default-secret-change-me',
   cookieName: '__Host-psifi.x-csrf-token',
