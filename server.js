@@ -12,64 +12,75 @@ const morgan = require('morgan');
 const app = express();
 
 // ======================
-// SECURITY MIDDLEWARE
+// SECURITY CONFIGURATION
 // ======================
-app.use(helmet()); // Security headers
+app.use(helmet());
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE']
+  origin: process.env.NODE_ENV === 'production' 
+    ? ['https://your-production-domain.com'] // REPLACE WITH YOUR DOMAIN
+    : ['http://localhost:3000'],
+  credentials: true
 }));
 
-// Rate limiting
+// Rate limiting for API routes
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 200, // limit each IP to 200 requests per windowMs
-  message: 'Too many requests from this IP, please try again later'
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 100 : 200,
+  message: 'Too many requests, please try again later'
 });
 
 // ======================
-// HTTP SERVER & SOCKET.IO
+// SERVER & SOCKET SETUP
 // ======================
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || '*',
+    origin: process.env.NODE_ENV === 'production'
+      ? 'https://madhavcouriers.in' // REPLACE WITH YOUR DOMAIN
+      : 'http://localhost:3000',
     methods: ['GET', 'POST']
   },
-  connectionStateRecovery: {
-    maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
-    skipMiddlewares: true
-  }
+  pingTimeout: 60000,
+  pingInterval: 25000
 });
 
-// Attach io instance to app
+// Attach io to app
 app.set('io', io);
 
 // ======================
-// APPLICATION MIDDLEWARE
+// MIDDLEWARE
 // ======================
-app.use(morgan('combined')); // HTTP request logging
-app.use(express.json({ limit: '10kb' })); // Body parser
+app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static files
-app.use(express.static(path.join(__dirname, 'public'), { maxAge: '1d' }));
-app.use('/admin', express.static(path.join(__dirname, 'admin'), { maxAge: '1d' });
+// Static files with cache control
+const staticOptions = {
+  maxAge: process.env.NODE_ENV === 'production' ? '7d' : '0',
+  setHeaders: (res, path) => {
+    if (path.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-store');
+    }
+  }
+};
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
+app.use('/admin', express.static(path.join(__dirname, 'admin'), staticOptions));
 
 // ======================
 // DATABASE CONNECTION
 // ======================
-require('./api/utils/db').connect()
-  .then(() => console.log('✅ Database connected successfully'))
-  .catch(err => {
-    console.error('❌ Database connection error:', err);
-    process.exit(1);
-  });
+const db = require('./api/utils/db');
+db.connect().then(() => {
+  console.log('✅ Database connected to:', process.env.MONGO_URI.split('@')[1]);
+}).catch(err => {
+  console.error('❌ Database connection failed:', err.message);
+  process.exit(1);
+});
 
 // ======================
 // ROUTES
 // ======================
-// API Routes (with rate limiting)
+// API Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
@@ -81,7 +92,7 @@ frontendRoutes.forEach(route => {
   });
 });
 
-// Admin Panel Routes
+// Admin Routes
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
@@ -93,64 +104,48 @@ app.get('/admin/dashboard', (req, res) => {
 // ======================
 // SOCKET.IO CONFIGURATION
 // ======================
-io.on('connection', (socket) => {
-  console.log(`🔌 Client connected: ${socket.id}`);
-
-  // Authentication middleware for Socket.IO
-  socket.use((packet, next) => {
-    const token = socket.handshake.auth.token;
-    if (!token) return next(new Error('Authentication error'));
-    // Add your JWT verification logic here
+io.use((socket, next) => {
+  // JWT authentication for sockets
+  const token = socket.handshake.auth.token;
+  if (!token) return next(new Error('Authentication error'));
+  // Verify JWT using your existing secret
+  jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
+    if (err) return next(new Error('Authentication failed'));
+    socket.user = decoded;
     next();
-  });
-
-  // Tracking updates
-  socket.on('subscribe-to-tracking', (trackingNumber) => {
-    if (!isValidTrackingNumber(trackingNumber)) {
-      return socket.emit('error', 'Invalid tracking number');
-    }
-    socket.join(trackingNumber);
-    console.log(`📦 Subscribed to tracking room: ${trackingNumber}`);
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log(`❌ Client disconnected (${reason}): ${socket.id}`);
-  });
-
-  socket.on('error', (err) => {
-    console.error(`⚠️ Socket error (${socket.id}):`, err.message);
   });
 });
 
-// Helper function for tracking number validation
-function isValidTrackingNumber(trackingNumber) {
-  return /^[A-Z0-9]{8,20}$/.test(trackingNumber);
-}
+io.on('connection', (socket) => {
+  console.log(`🔌 New connection: ${socket.id} (User: ${socket.user?.id || 'guest'})`);
+
+  socket.on('subscribe-to-tracking', (trackingNumber) => {
+    if (!/^[A-Z0-9]{8,20}$/.test(trackingNumber)) {
+      return socket.emit('error', 'Invalid tracking number format');
+    }
+    socket.join(`tracking:${trackingNumber}`);
+    console.log(`📦 User ${socket.user?.id} subscribed to tracking:${trackingNumber}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Disconnected: ${socket.id}`);
+  });
+});
 
 // ======================
 // ERROR HANDLING
 // ======================
-// 404 Handler
-app.use((req, res, next) => {
+app.use((req, res) => {
   res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
-  console.error('⚠️ Server error:', err.stack);
-  
-  // Differentiate between socket and HTTP errors
-  if (req.isSocket) {
-    return res.socket.emit('server-error', {
-      message: 'Internal server error',
-      status: 500
-    });
-  }
-
+  console.error('⚠️ Error:', err.stack);
   res.status(500).json({
     status: 'error',
-    message: 'Internal server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Internal server error' 
+      : err.message
   });
 });
 
@@ -158,23 +153,19 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ======================
 const PORT = process.env.PORT || 3000;
-const HOST = process.env.HOST || '0.0.0.0';
-
-server.listen(PORT, HOST, () => {
-  console.log(`🚀 Server running on http://${HOST}:${PORT}`);
-  console.log(`📡 Socket.IO running on ws://${HOST}:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`
+  🚀 Server running in ${process.env.NODE_ENV} mode
+  🔗 http://localhost:${PORT}
+  🔐 JWT expires in: ${process.env.JWT_EXPIRE}
+  `);
 });
 
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('⚠️ Unhandled Rejection:', err);
-  server.close(() => process.exit(1));
-});
-
-// Graceful shutdown
+// Handle process termination
 process.on('SIGTERM', () => {
-  console.log('🛑 SIGTERM received. Shutting down gracefully...');
+  console.log('🛑 SIGTERM received. Closing server...');
   server.close(() => {
+    db.disconnect();
     console.log('💤 Process terminated');
     process.exit(0);
   });
