@@ -154,12 +154,18 @@ connectDB();
 
 const authenticateAdmin = (req, res, next) => {
   const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
-  if (!token) return res.redirect('/admin/login.html');
+
+  if (!token) {
+    console.log('🚫 No token found. Redirecting to login.');
+    return res.redirect('/admin/login.html');
+  }
 
   try {
-    jwt.verify(token, process.env.JWT_SECRET);
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ Token verified:', decoded);
     next();
-  } catch {
+  } catch (err) {
+    console.log('❌ Invalid token:', err.message);
     return res.redirect('/admin/login.html');
   }
 };
