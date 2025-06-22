@@ -605,8 +605,98 @@
         </div>
     </footer>
 
+<!-- Socket.IO for real-time updates -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-<script src="/js/tracking.js"></script>
+<script>
+  const socket = io();
+
+  document.getElementById('trackForm')?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+
+    const trackResult = document.getElementById('trackResult');
+    const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
+
+    trackResult.innerHTML = '';
+    trackResult.style.display = 'none';
+
+    if (!trackingNumber.match(/^MCL\d{9}$/)) {
+      return showError('Invalid tracking number format. Use MCL followed by 9 digits.');
+    }
+
+    socket.emit('subscribe-to-tracking', trackingNumber);
+
+    try {
+      const response = await fetch(`/api/shipments/track/${trackingNumber}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        displayShipment(result.data);
+      } else {
+        showError('No shipment found with tracking number: ' + trackingNumber);
+      }
+    } catch (err) {
+      console.error('Tracking error:', err);
+      showError('Server error. Try again later.');
+    }
+  });
+
+  socket.on('tracking-update', (data) => {
+    if (data?.action === 'updated' && data.shipment) {
+      displayShipment(data.shipment);
+      showNotification('Shipment status updated!');
+    }
+  });
+
+  function displayShipment(s) {
+    const statusClass = getStatusClass(s.status);
+    const updatedDate = new Date(s.updatedAt || s.createdAt).toLocaleString();
+
+    document.getElementById('trackResult').innerHTML = `
+      <div class="tracking-result">
+        <h4>Tracking #: ${s.tracking_number}</h4>
+        <div class="tracking-card">
+          <div class="tracking-row"><span>Status:</span><span class="status-badge ${statusClass}">${s.status}</span></div>
+          <div class="tracking-row"><span>Customer:</span><span>${s.customer_name}</span></div>
+          <div class="tracking-row"><span>From:</span><span>${s.origin}</span></div>
+          <div class="tracking-row"><span>To:</span><span>${s.destination}</span></div>
+          <div class="tracking-row"><span>Current Location:</span><span>${s.current_city}</span></div>
+          <div class="tracking-row"><span>Last Update:</span><span>${updatedDate}</span></div>
+          ${s.shipment_details ? `<div class="tracking-details"><strong>Details:</strong><p>${s.shipment_details}</p></div>` : ''}
+        </div>
+      </div>`;
+    document.getElementById('trackResult').style.display = 'block';
+  }
+
+  function getStatusClass(status) {
+    const map = {
+      'Booked': 'status-booked',
+      'In Transit': 'status-transit',
+      'Out for Delivery': 'status-out',
+      'Delivered': 'status-delivered'
+    };
+    return map[status] || '';
+  }
+
+  function showError(message) {
+    const trackResult = document.getElementById('trackResult');
+    trackResult.innerHTML = `<div class="error-message"><i class="fas fa-exclamation-circle"></i> ${message}</div>`;
+    trackResult.style.display = 'block';
+  }
+
+  function showNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'tracking-notification';
+    notification.innerHTML = `<i class="fas fa-sync-alt"></i> ${message}`;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.classList.add('fade-out');
+      setTimeout(() => notification.remove(), 500);
+    }, 3000);
+  }
+</script>
     
 </body>
 </html>
