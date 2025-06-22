@@ -42,7 +42,7 @@ const csrfProtection = (req, res, next) => {
   next();
 };
 
-// 🛡️ Helmet with CSP fix for FontAwesome and Google Fonts
+// 🛡️ Helmet + CSP fix
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -118,7 +118,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(mongoSanitize());
 app.use(hpp());
 
-// 📁 Serve Public Files
+// 📁 Public static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0',
   setHeaders: (res, path) => {
@@ -145,26 +145,31 @@ const connectDB = async () => {
 };
 connectDB();
 
-// 🔐 Auth Middleware
+// 🔐 Authenticate Admin
 const authenticateAdmin = (req, res, next) => {
-  const token = req.cookies.adminToken;
-  if (!token) return res.redirect('/admin/login.html');
+  const token = req.cookies?.adminToken;
+  if (!token) {
+    console.log('⛔ No token found in cookie');
+    return res.redirect('/admin/login.html');
+  }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.admin = decoded;
+    console.log('✅ Authenticated admin:', decoded);
     next();
   } catch (err) {
+    console.error('❌ Invalid token:', err.message);
     res.clearCookie('adminToken');
     return res.redirect('/admin/login.html');
   }
 };
 
-// 🔗 API Routes
+// 🔗 Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
-// ❤️ Healthcheck
+// ✅ Health check
 app.get('/health', (req, res) => {
   const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
@@ -175,7 +180,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 🌐 Routes for static pages
+// 📄 Public pages with CSRF token
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
     res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
@@ -187,7 +192,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 🪪 Public Admin Login Page
+// 🪪 Login routes (unprotected)
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
     secure: process.env.NODE_ENV === 'production',
@@ -196,20 +201,21 @@ app.get('/admin/login', csrfProtection, (req, res) => {
   });
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
+
 app.use('/admin/login.html', express.static(path.join(__dirname, 'admin', 'login.html')));
 app.use('/admin/login.js', express.static(path.join(__dirname, 'admin', 'login.js')));
 
-// 🔐 Protected Admin Panel Pages
+// 🔐 Admin panel (protected)
 app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
 }));
 
-// ✅ Example CSRF-protected form
+// ✅ CSRF test route
 app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
   res.json({ status: 'success', message: 'Form submitted' });
 });
 
-// 404 handler
+// 404 Handler
 app.use((req, res) => {
   const errorPage = path.join(__dirname, 'public', '404.html');
   fs.existsSync(errorPage)
@@ -217,22 +223,24 @@ app.use((req, res) => {
     : res.status(404).json({ status: 'error', message: 'Not found' });
 });
 
-// 🔥 Error Handler
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error('❌ Server Error:', err);
+  console.error('❌ Server error:', err);
   const errorResponse = {
     status: 'error',
     code: err.code || 'SERVER_ERROR',
     message: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message
   };
+
   if (err.name === 'JsonWebTokenError') {
     errorResponse.code = 'INVALID_TOKEN';
     return res.status(401).json(errorResponse);
   }
+
   res.status(err.status || 500).json(errorResponse);
 });
 
-// 🚀 Start Server
+// 🏁 Start server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
