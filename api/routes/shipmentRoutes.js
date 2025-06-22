@@ -134,7 +134,7 @@ router.patch('/:id', authMiddleware, async (req, res) => {
       { 
         ...req.body,
         lastUpdated: Date.now(),
-        updatedBy: req.user.id 
+        updatedBy: req.admin._id
       },
       { new: true, runValidators: true }
     ).lean();
