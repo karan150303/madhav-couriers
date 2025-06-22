@@ -407,6 +407,76 @@
                 padding: 15px;
             }
         }
+
+        /* ===== NEW TRACKING STYLES ===== */
+        /* Tracking Notifications */
+        .tracking-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--primary);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .tracking-notification.fade-out {
+            animation: fadeOut 0.5s ease-out forwards;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+        
+        @keyframes fadeOut {
+            to { opacity: 0; }
+        }
+        
+        /* Tracking Card Styles */
+        .tracking-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .tracking-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .tracking-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #b91c1c;
+            padding: 15px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .tracking-details {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px dashed #e2e8f0;
+        }
+        /* ===== END NEW STYLES ===== */
     </style>
 </head>
 <body>
@@ -535,10 +605,146 @@
         </div>
     </footer>
 
-<!-- Real-time Socket.IO -->
-<script src="/socket.io/socket.io.js"></script>
+<!-- Socket.IO for real-time updates -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-<!-- Your tracking logic -->
-<script src="js/tracking.js"></script>
+<!-- Tracking JavaScript -->
+<script>
+// Initialize socket connection
+const socket = io();
+
+// Track form submission
+document.getElementById('trackForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  
+  const trackResult = document.getElementById('trackResult');
+  const trackingNumber = this.querySelector('input').value.trim().toUpperCase();
+
+  // Clear previous results
+  trackResult.innerHTML = '';
+  trackResult.style.display = 'none';
+
+  // Validate tracking format
+  if (!trackingNumber.match(/^MCL\d{9}$/)) {
+    showError('Invalid tracking number format. Please use MCL followed by 9 digits (e.g. MCL123456789)');
+    return;
+  }
+
+  // Subscribe to tracking updates
+  socket.emit('subscribe-to-tracking', trackingNumber);
+
+  try {
+    // Fetch shipment data
+    const response = await fetch(`/api/shipments/${trackingNumber}`, {
+      headers: {
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    if (!response.ok) throw new Error('Network error');
+    
+    const result = await response.json();
+    
+    if (result.success && result.data) {
+      displayShipment(result.data);
+    } else {
+      showError(`No shipment found with tracking number: ${trackingNumber}`);
+    }
+  } catch (error) {
+    console.error('Tracking error:', error);
+    showError('Could not retrieve tracking information. Please try again later.');
+  }
+});
+
+// Listen for real-time updates
+socket.on('tracking-update', (data) => {
+  if (data?.action === 'updated' && data.shipment) {
+    displayShipment(data.shipment);
+    showNotification("Shipment status updated!");
+  }
+});
+
+// Display shipment data
+function displayShipment(shipment) {
+  const statusClass = getStatusClass(shipment.status);
+  const updatedDate = new Date(shipment.updatedAt || shipment.createdAt).toLocaleString();
+
+  document.getElementById('trackResult').innerHTML = `
+    <div class="tracking-result">
+      <h4>Tracking Results: ${shipment.tracking_number}</h4>
+      <div class="tracking-card">
+        <div class="tracking-row">
+          <span>Status:</span>
+          <span class="status-badge ${statusClass}">${shipment.status}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Customer:</span>
+          <span>${shipment.customer_name}</span>
+        </div>
+        <div class="tracking-row">
+          <span>From:</span>
+          <span>${shipment.origin}</span>
+        </div>
+        <div class="tracking-row">
+          <span>To:</span>
+          <span>${shipment.destination}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Current Location:</span>
+          <span>${shipment.current_city}</span>
+        </div>
+        <div class="tracking-row">
+          <span>Last Update:</span>
+          <span>${updatedDate}</span>
+        </div>
+        ${shipment.shipment_details ? `
+        <div class="tracking-details">
+          <strong>Details:</strong>
+          <p>${shipment.shipment_details}</p>
+        </div>` : ''}
+      </div>
+    </div>
+  `;
+  document.getElementById('trackResult').style.display = 'block';
+}
+
+// Status badge styling
+function getStatusClass(status) {
+  const statusMap = {
+    'Booked': 'status-booked',
+    'In Transit': 'status-transit',
+    'Out for Delivery': 'status-out',
+    'Delivered': 'status-delivered'
+  };
+  return statusMap[status] || '';
+}
+
+// Error message display
+function showError(message) {
+  const trackResult = document.getElementById('trackResult');
+  trackResult.innerHTML = `
+    <div class="error-message">
+      <i class="fas fa-exclamation-circle"></i>
+      ${message}
+    </div>
+  `;
+  trackResult.style.display = 'block';
+}
+
+// Notification for updates
+function showNotification(message) {
+  const notification = document.createElement('div');
+  notification.className = 'tracking-notification';
+  notification.innerHTML = `
+    <i class="fas fa-sync-alt"></i> ${message}
+  `;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => notification.remove(), 500);
+  }, 3000);
+}
+</script>
 </body>
 </html>
