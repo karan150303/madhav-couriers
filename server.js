@@ -250,23 +250,36 @@ app.use((err, req, res, next) => {
 // ======================
 const PORT = process.env.PORT || 3000;
 
-// Database connection check before starting server
-mongoose.connect(process.env.DB_URI, {
+// Database connection with enhanced security and error handling
+const DB_URI = process.env.DB_URI || 'mongodb+srv://admin:Snaka%40786@madhav.kfaoq1n.mongodb.net/madhav-couriers?retryWrites=true&w=majority&appName=madhav';
+
+const mongooseOptions = {
   useNewUrlParser: true,
-  useUnifiedTopology: true
-})
-.then(() => {
-  console.log('Connected to MongoDB');
-  server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`Database: ${mongoose.connection.host}`);
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 5000,
+  socketTimeoutMS: 45000,
+  connectTimeoutMS: 10000, // Added connection timeout
+  retryWrites: true,
+  retryReads: true,
+  authSource: 'admin' // Specify authentication database if needed
+};
+
+mongoose.connect(DB_URI, mongooseOptions)
+  .then(() => {
+    console.log('✅ Successfully connected to MongoDB');
+    // Add event listeners after successful connection
+    mongoose.connection.on('error', err => {
+      console.error('❌ MongoDB connection error:', err);
+    });
+    mongoose.connection.on('disconnected', () => {
+      console.warn('⚠️ MongoDB disconnected');
+    });
+  })
+  .catch(err => {
+    console.error('❌ Failed to connect to MongoDB:', err.message);
+    console.error('💡 Connection URI used:', DB_URI.replace(/:[^@]+@/, ':*****@')); // Hide password in logs
+    process.exit(1);
   });
-})
-.catch(err => {
-  console.error('Database connection failed:', err);
-  process.exit(1);
-});
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
