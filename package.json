@@ -50,21 +50,5 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
-  },
-  "jest": {
-    "testEnvironment": "node",
-    "coveragePathIgnorePatterns": [
-      "/node_modules/",
-      "/config/",
-      "/tests/"
-    ],
-    "setupFilesAfterEnv": ["./tests/setup.js"]
-  },
-  "eslintConfig": {
-    "extends": "airbnb-base",
-    "rules": {
-      "no-console": "off",
-      "import/no-extraneous-dependencies": ["error", {"devDependencies": true}]
-    }
   }
 }
