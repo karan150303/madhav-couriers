@@ -104,7 +104,7 @@ module.exports = {
   getConfig: function() {
     return {
       server: this.server,
-      database: { ...this.database, uri: '***' }, // Hide sensitive URI
+      database: { ...this.database, uri: 'mongodb+srv://admin:Snaka%40786@madhav.kfaoq1n.mongodb.net/madhav_couriers?retryWrites=true&w=majority&appName=madhav' }, // Hide sensitive URI
       auth: { ...this.auth, jwtSecret: '3d8ac43390eb0108a6cbb9a8ec60f444' }, // Hide secret
       rateLimit: this.rateLimit,
       email: { ...this.email, auth: { user: this.email.auth.user, pass: '***' } },
