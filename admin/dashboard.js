@@ -11,13 +11,11 @@ document.addEventListener('DOMContentLoaded', function () {
 
     try {
       const response = await fetch('/api/shipments', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(shipment)
-      });
+  method: 'POST',
+  credentials: 'include', // ✅ important
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(shipmentData)
+  });
 
       const result = await response.json();
 
