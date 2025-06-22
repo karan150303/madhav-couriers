@@ -4,13 +4,23 @@ const Shipment = require('../models/shipment');
 const authMiddleware = require('../middleware/authMiddleware');
 const { validateShipment } = require('../validation/validation');
 
-// Utility function for error handling
-const handleError = (res, err, defaultMessage = 'Server error') => {
-  console.error(err);
-  const statusCode = err.name === 'ValidationError' ? 400 : 500;
+// Enhanced error handler with logging
+const handleError = (res, err, operation = 'operation') => {
+  console.error(`Error during ${operation}:`, err);
+  
+  const statusCode = err.name === 'ValidationError' ? 400 : 
+                    err.name === 'NotFoundError' ? 404 : 
+                    err.code === 11000 ? 409 : 500;
+  
+  const message = err.name === 'ValidationError' ? 'Validation failed' :
+                 err.name === 'NotFoundError' ? 'Resource not found' :
+                 err.code === 11000 ? 'Duplicate key error' :
+                 'Internal server error';
+
   res.status(statusCode).json({
     success: false,
-    message: err.message || defaultMessage
+    message: `${message}: ${err.message || operation} failed`,
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
   });
 };
 
@@ -19,132 +29,158 @@ router.get('/', authMiddleware, async (req, res) => {
   try {
     const { 
       page = 1, 
-      limit = 10,
-      sortBy = 'lastUpdated',
-      sortOrder = 'desc',
+      limit = 20,
+      sortBy = '-createdAt',
       status,
-      current_city
+      current_city,
+      origin,
+      destination
     } = req.query;
 
+    // Build filter object
     const filter = {};
-    if (status) filter.status = status;
-    if (current_city) filter.current_city = current_city;
+    if (status) filter.status = { $in: status.split(',') };
+    if (current_city) filter.current_city = new RegExp(current_city, 'i');
+    if (origin) filter.origin = new RegExp(origin, 'i');
+    if (destination) filter.destination = new RegExp(destination, 'i');
 
+    // Execute parallel queries
     const [shipments, total] = await Promise.all([
       Shipment.find(filter)
-        .sort({ [sortBy]: sortOrder === 'asc' ? 1 : -1 })
+        .sort(sortBy)
         .skip((page - 1) * limit)
-        .limit(limit),
+        .limit(limit)
+        .lean(),
       Shipment.countDocuments(filter)
     ]);
 
+    // Set response headers
+    res.set('X-Total-Count', total);
+    res.set('X-Page', page);
+    res.set('X-Per-Page', limit);
+
     res.json({
       success: true,
-      data: {
-        shipments,
-        pagination: {
-          total,
-          pages: Math.ceil(total / limit),
-          currentPage: page,
-          perPage: limit
-        }
+      data: shipments,
+      meta: {
+        total,
+        page,
+        pages: Math.ceil(total / limit),
+        limit
       }
     });
+
   } catch (err) {
-    handleError(res, err, 'Failed to fetch shipments');
+    handleError(res, err, 'fetching shipments');
   }
 });
 
 // CREATE SHIPMENT (PROTECTED + VALIDATED)
 router.post('/', authMiddleware, validateShipment, async (req, res) => {
   try {
-    const existingShipment = await Shipment.findOne({ 
-      tracking_number: req.body.tracking_number 
-    });
-    
-    if (existingShipment) {
-      return res.status(409).json({
-        success: false,
-        message: 'Tracking number already exists'
-      });
+    // Check for existing tracking number
+    const exists = await Shipment.exists({ tracking_number: req.body.tracking_number });
+    if (exists) {
+      const error = new Error('Tracking number already in use');
+      error.code = 11000;
+      throw error;
     }
 
+    // Create new shipment
     const newShipment = await Shipment.create({
       ...req.body,
-      createdBy: req.user.id
+      createdBy: req.user.id,
+      status: req.body.status || 'registered'
     });
+
+    // Emit real-time update
+    req.app.get('io').to('shipment-updates').emit('new-shipment', newShipment);
 
     res.status(201).json({
       success: true,
       data: newShipment
     });
+
   } catch (err) {
-    handleError(res, err, 'Failed to create shipment');
+    handleError(res, err, 'creating shipment');
   }
 });
 
 // GET SHIPMENT BY ID
 router.get('/:id', async (req, res) => {
   try {
-    const shipment = await Shipment.findById(req.params.id);
+    const shipment = await Shipment.findById(req.params.id).lean();
     if (!shipment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Shipment not found'
-      });
+      const error = new Error('Shipment not found');
+      error.name = 'NotFoundError';
+      throw error;
     }
     res.json({ success: true, data: shipment });
   } catch (err) {
-    handleError(res, err, 'Failed to fetch shipment');
+    handleError(res, err, 'fetching shipment');
   }
 });
 
 // UPDATE SHIPMENT (PROTECTED)
-router.put('/:id', authMiddleware, async (req, res) => {
+router.patch('/:id', authMiddleware, async (req, res) => {
   try {
-    const shipment = await Shipment.findById(req.params.id);
-    if (!shipment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Shipment not found'
-      });
-    }
-
-    if (req.body.tracking_number && req.body.tracking_number !== shipment.tracking_number) {
-      return res.status(400).json({
-        success: false,
-        message: 'Tracking number cannot be changed'
-      });
+    // Prevent tracking number changes
+    if (req.body.tracking_number) {
+      delete req.body.tracking_number;
     }
 
     const updatedShipment = await Shipment.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, lastUpdated: Date.now() },
+      { 
+        ...req.body,
+        lastUpdated: Date.now(),
+        updatedBy: req.user.id 
+      },
       { new: true, runValidators: true }
-    );
+    ).lean();
+
+    if (!updatedShipment) {
+      const error = new Error('Shipment not found');
+      error.name = 'NotFoundError';
+      throw error;
+    }
+
+    // Broadcast update
+    req.app.get('io').to(`tracking:${updatedShipment.tracking_number}`)
+                   .emit('shipment-updated', updatedShipment);
 
     res.json({
       success: true,
       data: updatedShipment
     });
+
   } catch (err) {
-    handleError(res, err, 'Failed to update shipment');
+    handleError(res, err, 'updating shipment');
   }
 });
 
 // DELETE SHIPMENT (PROTECTED)
 router.delete('/:id', authMiddleware, async (req, res) => {
   try {
-    const shipment = await Shipment.findByIdAndDelete(req.params.id);
+    const shipment = await Shipment.findByIdAndDelete(req.params.id).lean();
     if (!shipment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Shipment not found'
-      });
+      const error = new Error('Shipment not found');
+      error.name = 'NotFoundError';
+      throw error;
     }
-    res.json({ success: true, message: 'Shipment deleted successfully' });
+
+    // Notify subscribers
+    req.app.get('io').to(`tracking:${shipment.tracking_number}`)
+                   .emit('shipment-deleted', { id: req.params.id });
+
+    res.json({ 
+      success: true, 
+      data: { id: req.params.id },
+      message: 'Shipment deleted successfully'
+    });
+
   } catch (err) {
-    handleError(res, err, 'Failed to delete shipment');
+    handleError(res, err, 'deleting shipment');
   }
 });
 
@@ -153,19 +189,43 @@ router.get('/track/:tracking_number', async (req, res) => {
   try {
     const shipment = await Shipment.findOne(
       { tracking_number: req.params.tracking_number },
-      '-__v -createdBy'
-    );
+      '-__v -createdBy -updatedBy'
+    ).lean();
 
     if (!shipment) {
-      return res.status(404).json({
-        success: false,
-        message: 'Shipment not found'
-      });
+      const error = new Error('Shipment not found');
+      error.name = 'NotFoundError';
+      throw error;
     }
 
-    res.json({ success: true, data: shipment });
+    res.json({ 
+      success: true, 
+      data: shipment,
+      trackingUrl: `${req.protocol}://${req.get('host')}/track/${req.params.tracking_number}`
+    });
+
   } catch (err) {
-    handleError(res, err, 'Failed to track shipment');
+    handleError(res, err, 'tracking shipment');
+  }
+});
+
+// SHIPMENT STATUS HISTORY (PROTECTED)
+router.get('/:id/history', authMiddleware, async (req, res) => {
+  try {
+    const shipment = await Shipment.findById(req.params.id, 'statusHistory').lean();
+    if (!shipment) {
+      const error = new Error('Shipment not found');
+      error.name = 'NotFoundError';
+      throw error;
+    }
+
+    res.json({
+      success: true,
+      data: shipment.statusHistory || []
+    });
+
+  } catch (err) {
+    handleError(res, err, 'fetching shipment history');
   }
 });
 
