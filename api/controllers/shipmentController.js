@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 // @access  Private
 exports.getShipments = asyncHandler(async (req, res) => {
   const shipments = await Shipment.find().sort('-createdAt');
+  res.setHeader('Cache-Control', 'no-store');
   res.status(200).json({
     success: true,
     count: shipments.length,
