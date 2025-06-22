@@ -162,19 +162,21 @@ const connectDB = async () => {
 connectDB();
 
 const authenticateAdmin = (req, res, next) => {
-  const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
+  const token = req.cookies.adminToken;
 
   if (!token) {
-    console.log('🚫 No token found. Redirecting to login.');
+    console.log('🚫 No token in cookies. Redirecting...');
     return res.redirect('/admin/login.html');
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('✅ Token verified:', decoded);
+    req.admin = decoded;
+    console.log('✅ Authenticated:', decoded);
     next();
   } catch (err) {
     console.log('❌ Invalid token:', err.message);
+    res.clearCookie('adminToken');
     return res.redirect('/admin/login.html');
   }
 };
