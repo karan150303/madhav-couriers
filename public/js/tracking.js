@@ -1,3 +1,6 @@
+setInterval(function() {
+  window.location.reload();
+}, 10000); // Reloads page every 10 sec
 // Initialize socket connection to server
 const socket = io();
 
