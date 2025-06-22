@@ -94,4 +94,20 @@ router.post('/admin/login', authLimiter, async (req, res) => {
   }
 });
 
+router.get('/verify', (req, res) => {
+  const token = req.cookies.adminToken;
+
+  if (!token) {
+    return res.status(401).json({ success: false, message: 'Not authenticated' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.status(200).json({ success: true, admin: decoded });
+  } catch (err) {
+    res.clearCookie('adminToken');
+    return res.status(401).json({ success: false, message: 'Invalid token' });
+  }
+});
+
 module.exports = router;
