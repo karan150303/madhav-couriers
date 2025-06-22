@@ -11,19 +11,16 @@ exports.connect = async (callback) => {
   }
 
   // Connection options
-  const options = {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 10000, // Increased to 10 seconds
-    connectTimeoutMS: 10000,
-    maxPoolSize: process.env.NODE_ENV === 'production' ? 50 : 10,
-    minPoolSize: 5,
-    socketTimeoutMS: 45000,
-    family: 4,
-    retryWrites: true,
-    w: 'majority',
-    retryReads: true
-  };
+// Replace the connection options with:
+const options = {
+  serverSelectionTimeoutMS: 10000,
+  connectTimeoutMS: 10000,
+  maxPoolSize: process.env.NODE_ENV === 'production' ? 50 : 10,
+  minPoolSize: 5,
+  socketTimeoutMS: 45000,
+  retryWrites: true,
+  retryReads: true
+};
 
   try {
     await mongoose.connect(MONGO_URI, options);
