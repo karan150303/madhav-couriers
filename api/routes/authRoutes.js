@@ -73,10 +73,10 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     );
 
       res.cookie('adminToken', token, {
-     httpOnly: true,         // ✅ must be true for security
-     secure: true,           // ✅ required for HTTPS on Render
+     httpOnly: true,      
+     secure: true,          
      sameSite: 'Strict',
-     maxAge: 3600000          // 1 hour
+     maxAge: 3600000         
    });
 
     res.json({
