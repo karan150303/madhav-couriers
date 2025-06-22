@@ -13,13 +13,13 @@ const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
 const csrf = require('csurf');
 const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
+const db = require('./config/db.config'); // Updated to use db.config.js
 
 const app = express();
 
-// ======================
-// SECURITY CONFIGURATION
-// ======================
+/* ====================== */
+/* SECURITY CONFIGURATION */
+/* ====================== */
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
@@ -72,9 +72,9 @@ const apiLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// ======================
-// SERVER & SOCKET SETUP
-// ======================
+/* ====================== */
+/* SERVER & SOCKET SETUP  */
+/* ====================== */
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -93,9 +93,9 @@ const io = new Server(server, {
 app.set('io', io);
 app.set('trust proxy', 1);
 
-// ======================
-// APPLICATION MIDDLEWARE
-// ======================
+/* ====================== */
+/* APPLICATION MIDDLEWARE */
+/* ====================== */
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 app.use(express.json({ limit: '10kb' }));
 app.use(express.urlencoded({ extended: true, limit: '10kb' }));
@@ -123,7 +123,28 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
-// Admin static files with authentication middleware
+/* ====================== */
+/* DATABASE CONNECTION    */
+/* ====================== */
+db.connect()
+  .then(() => {
+    logger.info('Database connection established');
+    
+    // Event listeners for DB connection
+    mongoose.connection.on('connected', () => {
+      logger.info('MongoDB connected');
+    });
+    
+    mongoose.connection.on('disconnected', () => {
+      logger.warn('MongoDB disconnected');
+    });
+  })
+  .catch(err => {
+    logger.error('Database connection failed:', err);
+    process.exit(1);
+  });
+
+// Admin authentication middleware
 const authenticateAdmin = (req, res, next) => {
   const token = req.cookies.adminToken || req.headers.authorization?.split(' ')[1];
   
@@ -139,27 +160,25 @@ const authenticateAdmin = (req, res, next) => {
   }
 };
 
-app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
-  maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
-}));
-
-// ======================
-// ROUTES
-// ======================
+/* ====================== */
+/* ROUTES                 */
+/* ====================== */
 // API Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', async (req, res) => {
+  const dbHealth = await db.checkHealth();
   res.status(200).json({ 
     status: 'ok',
     uptime: process.uptime(),
+    database: dbHealth,
     timestamp: new Date().toISOString()
   });
 });
 
-// Frontend routes with CSRF protection
+// Frontend routes
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
     res.cookie('XSRF-TOKEN', req.csrfToken(), {
@@ -171,7 +190,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Admin routes with authentication
+// Admin routes
+app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'), {
+  maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0'
+}));
+
 app.get('/admin/login', csrfProtection, (req, res) => {
   res.cookie('XSRF-TOKEN', req.csrfToken(), {
     secure: process.env.NODE_ENV === 'production',
@@ -181,114 +204,60 @@ app.get('/admin/login', csrfProtection, (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
 
-app.get('/admin/dashboard', authenticateAdmin, csrfProtection, (req, res) => {
-  res.cookie('XSRF-TOKEN', req.csrfToken(), {
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    httpOnly: false
-  });
-  res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
-});
-
-// ======================
-// ERROR HANDLING
-// ======================
-// Custom 404 handler
+/* ====================== */
+/* ERROR HANDLING         */
+/* ====================== */
 app.use((req, res, next) => {
   const errorPagePath = path.join(__dirname, 'public', '404.html');
-  
-  if (fs.existsSync(errorPagePath)) {
-    res.status(404).sendFile(errorPagePath);
-  } else {
-    res.status(404).json({
-      status: 'error',
-      message: 'Page not found',
-      path: req.path
-    });
-  }
+  fs.existsSync(errorPagePath) 
+    ? res.status(404).sendFile(errorPagePath)
+    : res.status(404).json({ status: 'error', message: 'Not found' });
 });
 
-// Error handler
 app.use((err, req, res, next) => {
-  console.error('Error:', err.stack);
+  logger.error('Server error:', err);
   
-  if (err.code === 'EBADCSRFTOKEN') {
-    return res.status(403).json({
-      status: 'error',
-      code: 'INVALID_CSRF',
-      message: 'Invalid CSRF token'
-    });
-  }
-
-  if (err.name === 'JsonWebTokenError') {
-    return res.status(401).json({
-      status: 'error',
-      code: 'INVALID_TOKEN',
-      message: 'Invalid authentication token'
-    });
-  }
-
-  if (err.name === 'TokenExpiredError') {
-    return res.status(401).json({
-      status: 'error',
-      code: 'TOKEN_EXPIRED',
-      message: 'Session expired. Please log in again'
-    });
-  }
-
-  res.status(err.status || 500).json({
+  const errorResponse = {
     status: 'error',
-    code: 'SERVER_ERROR',
+    code: err.code || 'SERVER_ERROR',
     message: process.env.NODE_ENV === 'production' 
       ? 'Internal server error' 
       : err.message
-  });
+  };
+
+  if (err.name === 'JsonWebTokenError') {
+    errorResponse.code = 'INVALID_TOKEN';
+    return res.status(401).json(errorResponse);
+  }
+
+  res.status(err.status || 500).json(errorResponse);
 });
 
-// ======================
-// SERVER STARTUP
-// ======================
+/* ====================== */
+/* SERVER STARTUP         */
+/* ====================== */
 const PORT = process.env.PORT || 3000;
 
-// Database connection with enhanced security and error handling
-const DB_URI = process.env.DB_URI || 'mongodb+srv://admin:Snaka%40786@madhav.kfaoq1n.mongodb.net/madhav-couriers?retryWrites=true&w=majority&appName=madhav';
-
-const mongooseOptions = {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-  connectTimeoutMS: 10000, // Added connection timeout
-  retryWrites: true,
-  retryReads: true,
-  authSource: 'admin' // Specify authentication database if needed
-};
-
-mongoose.connect(DB_URI, mongooseOptions)
-  .then(() => {
-    console.log('✅ Successfully connected to MongoDB');
-    // Add event listeners after successful connection
-    mongoose.connection.on('error', err => {
-      console.error('❌ MongoDB connection error:', err);
-    });
-    mongoose.connection.on('disconnected', () => {
-      console.warn('⚠️ MongoDB disconnected');
-    });
-  })
-  .catch(err => {
-    console.error('❌ Failed to connect to MongoDB:', err.message);
-    console.error('💡 Connection URI used:', DB_URI.replace(/:[^@]+@/, ':*****@')); // Hide password in logs
-    process.exit(1);
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  logger.info('SIGTERM received. Shutting down gracefully...');
+  await db.disconnect();
+  server.close(() => {
+    logger.info('Server terminated');
+    process.exit(0);
   });
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err);
-  process.exit(1);
 });
 
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
-  process.exit(1);
+process.on('SIGINT', async () => {
+  logger.info('SIGINT received. Shutting down gracefully...');
+  await db.disconnect();
+  server.close(() => {
+    logger.info('Server terminated');
+    process.exit(0);
+  });
+});
+
+server.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`);
+  logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
 });
