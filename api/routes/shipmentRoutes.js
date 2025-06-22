@@ -86,15 +86,15 @@ router.post('/', authMiddleware, validateShipment, async (req, res) => {
       throw error;
     }
 
-    // Create new shipment
     const newShipment = await Shipment.create({
-      ...req.body,
-      createdBy: req.user.id,
-      status: req.body.status || 'registered'
-    });
+     ...req.body,
+    createdBy: req.admin._id,
+    status: req.body.status || 'Booked'  // default fallback status
+  });
 
-    // Emit real-time update
-    req.app.get('io').to('shipment-updates').emit('new-shipment', newShipment);
+   // Emit to dashboard
+   req.app.get('io').emit('shipment-update', { action: 'created', shipment: newShipment });
+
 
     res.status(201).json({
       success: true,
