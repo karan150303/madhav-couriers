@@ -6,9 +6,9 @@ const rateLimit = require('express-rate-limit');
 const Admin = require('../models/admin');
 const { loginValidation } = require('../validation/validation');
 
-// Rate limiter for login attempts
+// 🔒 Limit login attempts
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000,
   max: 5,
   message: 'Too many login attempts. Please try again later.',
   skipSuccessfulRequests: true
@@ -30,6 +30,7 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       .select('+password +loginAttempts +lockedUntil');
 
     if (!admin) {
+      console.warn('❌ Invalid username');
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
@@ -45,67 +46,64 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       await Admin.findByIdAndUpdate(admin._id, {
         $inc: { loginAttempts: 1 },
         ...(admin.loginAttempts + 1 >= 5 && {
-          lockedUntil: Date.now() + 30 * 60 * 1000 // lock 30 mins
+          lockedUntil: Date.now() + 30 * 60 * 1000
         })
       });
 
+      console.warn('❌ Wrong password');
       return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
-    // ✅ Reset failed attempts after successful login
+    // ✅ Reset attempts
     await Admin.findByIdAndUpdate(admin._id, {
       loginAttempts: 0,
       lockedUntil: null,
       lastLogin: new Date()
     });
 
-    // ✅ Generate JWT
     const token = jwt.sign(
-      {
-        _id: admin._id,
-        role: 'admin'
-      },
+      { _id: admin._id, role: 'admin' },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
 
-    // ✅ Set token in cookie
+    // ✅ Set token cookie
     res.cookie('adminToken', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'Lax', // use 'Lax' instead of 'Strict' for redirect compatibility
-      maxAge: 3600000 // 1 hour
+      sameSite: 'Lax',
+      maxAge: 3600000
     });
 
-    console.log('✅ Login successful');
+    console.log('✅ Admin login successful:', admin.username);
 
-    return res.json({
+    res.json({
       success: true,
       token,
       redirect: '/admin/dashboard.html'
     });
 
   } catch (err) {
-    console.error('❌ Login error:', err);
-    return res.status(500).json({
+    console.error('❌ Login error:', err.message);
+    res.status(500).json({
       success: false,
       message: 'Authentication failed'
     });
   }
 });
 
-// ✅ Admin Token Verification Route
+// ✅ Verify Token Route
 router.get('/verify', (req, res) => {
   const token = req.cookies?.adminToken;
 
   if (!token) {
-    console.warn('🔒 No token in cookie');
+    console.warn('🔒 No adminToken in cookies');
     return res.status(401).json({ success: false, message: 'Not authenticated' });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    console.log('✅ Token verified:', decoded);
+    console.log('✅ Token valid:', decoded);
     return res.status(200).json({ success: true, admin: decoded });
   } catch (err) {
     console.error('❌ Invalid token:', err.message);
