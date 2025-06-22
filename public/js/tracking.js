@@ -14,7 +14,7 @@ document.getElementById('trackForm')?.addEventListener('submit', async function 
 
   // Validate tracking format
   if (!trackingNumber.match(/^MCL\d{9}$/)) {
-    showValidationError();
+    showError('Invalid tracking number format. Use MCL followed by 9 digits (e.g. MCL123456789)');
     return;
   }
 
@@ -22,27 +22,25 @@ document.getElementById('trackForm')?.addEventListener('submit', async function 
   socket.emit('subscribe-to-tracking', trackingNumber);
 
   try {
-    // ✅ Fixed tracking endpoint
     const response = await fetch(`/api/shipments/track/${trackingNumber}`, {
       headers: { 'Cache-Control': 'no-cache' }
     });
-
-    if (!response.ok) throw new Error('Network error');
 
     const result = await response.json();
 
     if (result.success && result.data) {
       displayShipment(result.data);
     } else {
-      showNotFoundError(trackingNumber);
+      showError(`No shipment found with tracking number: ${trackingNumber}`);
     }
+
   } catch (error) {
     console.error('Tracking error:', error);
-    showServerError();
+    showError('Could not retrieve tracking information. Please try again later.');
   }
 });
 
-// Real-time shipment updates
+// Listen for real-time updates
 socket.on('tracking-update', (data) => {
   if (data?.action === 'updated' && data.shipment) {
     displayShipment(data.shipment);
@@ -87,31 +85,18 @@ function getStatusClass(status) {
   return statusMap[status] || '';
 }
 
-// Error handling
-function showValidationError() {
-  showError('Invalid tracking number format. Use MCL followed by 9 digits (e.g. MCL123456789)');
-}
-
-function showNotFoundError(trackingNumber) {
-  showError(`No shipment found with tracking number: ${trackingNumber}`);
-}
-
-function showServerError() {
-  showError('Could not retrieve tracking information. Please try again later.');
-}
-
+// Show error
 function showError(message) {
   const trackResult = document.getElementById('trackResult');
   trackResult.innerHTML = `
     <div class="error-message">
-      <i class="fas fa-exclamation-circle"></i>
-      ${message}
+      <i class="fas fa-exclamation-circle"></i> ${message}
     </div>
   `;
   trackResult.style.display = 'block';
 }
 
-// Notification for updates
+// Optional: Live update notification
 function showNotification(message) {
   const notification = document.createElement('div');
   notification.className = 'tracking-notification';
