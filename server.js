@@ -7,9 +7,8 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
 const morgan = require('morgan');
-const jwt = require('jsonwebtoken');
+const fs = require('fs'); // Added for file existence check
 
-// Initialize Express app
 const app = express();
 
 // ======================
@@ -68,7 +67,6 @@ const io = new Server(server, {
   }
 });
 
-// Attach io to app
 app.set('io', io);
 app.set('trust proxy', 1);
 
@@ -86,6 +84,7 @@ app.use('/admin', express.static(path.join(__dirname, 'admin')));
 // ======================
 // ROUTES
 // ======================
+// API Routes
 app.use('/api/auth', apiLimiter, require('./api/routes/authRoutes'));
 app.use('/api/shipments', apiLimiter, require('./api/routes/shipmentRoutes'));
 
@@ -99,24 +98,45 @@ app.get('/health', (req, res) => res.status(200).json({ status: 'ok' }));
   });
 });
 
-// Admin routes
+// Admin routes with authentication check
 app.get('/admin/login', (req, res) => {
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
 });
 
 app.get('/admin/dashboard', (req, res) => {
+  // Add authentication middleware here or in the route handler
   res.sendFile(path.join(__dirname, 'admin', 'dashboard.html'));
 });
 
 // ======================
-// ERROR HANDLING
+// ERROR HANDLING (IMPROVED)
 // ======================
-app.use((req, res) => {
-  res.status(404).sendFile(path.join(__dirname, 'public', '404.html'));
+// Custom 404 handler
+app.use((req, res, next) => {
+  const errorPagePath = path.join(__dirname, 'public', '404.html');
+  
+  if (fs.existsSync(errorPagePath)) {
+    res.status(404).sendFile(errorPagePath);
+  } else {
+    res.status(404).json({
+      status: 'error',
+      message: 'Page not found'
+    });
+  }
 });
 
+// Error handler
 app.use((err, req, res, next) => {
   console.error('Error:', err.stack);
+  
+  // Handle JWT errors specifically
+  if (err.name === 'JsonWebTokenError') {
+    return res.status(401).json({
+      status: 'error',
+      message: 'Invalid token'
+    });
+  }
+  
   res.status(500).json({
     status: 'error',
     message: 'Internal server error'
@@ -127,6 +147,16 @@ app.use((err, req, res, next) => {
 // SERVER STARTUP
 // ======================
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+
+// Database connection check before starting server
+require('./config/db.config').connect((err) => {
+  if (err) {
+    console.error('Database connection failed:', err);
+    process.exit(1);
+  }
+  
+  server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+  });
 });
