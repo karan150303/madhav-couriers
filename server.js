@@ -11,11 +11,39 @@ const fs = require('fs');
 const cookieParser = require('cookie-parser');
 const mongoSanitize = require('express-mongo-sanitize');
 const hpp = require('hpp');
-const csrf = require('csurf');
+const { doubleCsrf } = require('csrf-csrf');
 const jwt = require('jsonwebtoken');
-const db = require('./config/db.config'); // Updated to use db.config.js
+const db = require('./config/db.config');
 
 const app = express();
+
+/* ====================== */
+/* CSRF PROTECTION SETUP  */
+/* ====================== */
+const {
+  generateToken, // Use this to generate tokens
+  validateRequest, // Use this to validate requests
+  doubleCsrfProtection // Use this as middleware
+} = doubleCsrf({
+  getSecret: () => process.env.CSRF_SECRET || 'default-secret-change-me',
+  cookieName: '__Host-psifi.x-csrf-token',
+  cookieOptions: {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'strict',
+    signed: true
+  },
+  size: 64,
+  ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
+  getTokenFromRequest: (req) => req.headers['x-csrf-token']
+});
+
+// CSRF protection middleware
+const csrfProtection = (req, res, next) => {
+  const token = generateToken(res);
+  res.locals.csrfToken = token;
+  next();
+};
 
 /* ====================== */
 /* SECURITY CONFIGURATION */
@@ -103,16 +131,6 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 app.use(mongoSanitize());
 app.use(hpp());
 
-// CSRF protection (only for non-API routes)
-const csrfProtection = csrf({
-  cookie: {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    signed: true
-  }
-});
-
 // Static files
 app.use(express.static(path.join(__dirname, 'public'), {
   maxAge: process.env.NODE_ENV === 'production' ? '1y' : '0',
@@ -181,7 +199,7 @@ app.get('/health', async (req, res) => {
 // Frontend routes
 ['/', '/about', '/contact', '/rates'].forEach(route => {
   app.get(route, csrfProtection, (req, res) => {
-    res.cookie('XSRF-TOKEN', req.csrfToken(), {
+    res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       httpOnly: false
@@ -196,12 +214,18 @@ app.use('/admin', authenticateAdmin, express.static(path.join(__dirname, 'admin'
 }));
 
 app.get('/admin/login', csrfProtection, (req, res) => {
-  res.cookie('XSRF-TOKEN', req.csrfToken(), {
+  res.cookie('XSRF-TOKEN', res.locals.csrfToken, {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
     httpOnly: false
   });
   res.sendFile(path.join(__dirname, 'admin', 'login.html'));
+});
+
+// Example protected POST route
+app.post('/api/submit-form', doubleCsrfProtection, (req, res) => {
+  // Your form handling logic here
+  res.json({ status: 'success', message: 'Form submitted successfully' });
 });
 
 /* ====================== */
