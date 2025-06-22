@@ -67,13 +67,15 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       { expiresIn: '1h' }
     );
 
-    // Set cookie
+    // ✅ Set cookie securely with better compatibility
     res.cookie('adminToken', token, {
       httpOnly: true,
-      secure: true,
-      sameSite: 'Strict',
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'Lax', // was 'Strict', changed for better redirect behavior
       maxAge: 3600000
     });
+
+    console.log('✅ Login successful. Token set in cookie.');
 
     res.json({
       success: true,
@@ -82,7 +84,7 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     });
 
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('❌ Login error:', err);
     res.status(500).json({
       success: false,
       message: 'Authentication failed'
@@ -92,16 +94,19 @@ router.post('/admin/login', authLimiter, async (req, res) => {
 
 // ✅ Admin Token Verification Route
 router.get('/verify', (req, res) => {
-  const token = req.cookies.adminToken;
+  const token = req.cookies?.adminToken;
 
   if (!token) {
+    console.log('🔒 No token in cookie');
     return res.status(401).json({ success: false, message: 'Not authenticated' });
   }
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    console.log('✅ Token verified:', decoded);
     return res.status(200).json({ success: true, admin: decoded });
   } catch (err) {
+    console.log('❌ Invalid token:', err.message);
     res.clearCookie('adminToken');
     return res.status(401).json({ success: false, message: 'Invalid token' });
   }
