@@ -38,17 +38,32 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "eslint": "^8.56.0",
-    "eslint-config-airbnb-base": "^16.0.0",
-    "eslint-plugin-import": "^2.29.1",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb-base": "^14.2.1",
+    "eslint-plugin-import": "^2.25.4",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "supertest": "^7.0.0",
-    "eslint-plugin-security": "^1.7.1",
     "mongodb-memory-server": "^8.0.0"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/config/",
+      "/tests/"
+    ],
+    "setupFilesAfterEnv": ["./tests/setup.js"]
+  },
+  "eslintConfig": {
+    "extends": "airbnb-base",
+    "rules": {
+      "no-console": "off",
+      "import/no-extraneous-dependencies": ["error", {"devDependencies": true}]
+    }
   }
 }
