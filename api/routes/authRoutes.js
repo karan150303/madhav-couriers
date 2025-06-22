@@ -6,14 +6,15 @@ const rateLimit = require('express-rate-limit');
 const Admin = require('../models/admin');
 const { loginValidation } = require('../validation/validation');
 
+// Rate limiter for login attempts
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5,
-  message: 'Too many login attempts',
+  message: 'Too many login attempts. Please try again later.',
   skipSuccessfulRequests: true
 });
 
-// Admin Login - Updated endpoint to match frontend
+// ✅ Admin Login Route
 router.post('/admin/login', authLimiter, async (req, res) => {
   try {
     const validation = loginValidation(req.body);
@@ -28,17 +29,14 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     const admin = await Admin.findOne({ username: req.body.username })
       .select('+password +loginAttempts +lockedUntil');
 
-    if (admin?.lockedUntil && admin.lockedUntil > Date.now()) {
+    if (!admin) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+    }
+
+    if (admin.lockedUntil && admin.lockedUntil > Date.now()) {
       return res.status(403).json({
         success: false,
         message: `Account locked until ${new Date(admin.lockedUntil).toLocaleTimeString()}`
-      });
-    }
-
-    if (!admin) {
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid credentials' 
       });
     }
 
@@ -46,17 +44,14 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     if (!validPass) {
       await Admin.findByIdAndUpdate(admin._id, {
         $inc: { loginAttempts: 1 },
-        ...(admin.loginAttempts + 1 >= 5 && { 
+        ...(admin.loginAttempts + 1 >= 5 && {
           lockedUntil: Date.now() + 30 * 60 * 1000
         })
       });
-
-      return res.status(401).json({ 
-        success: false,
-        message: 'Invalid credentials' 
-      });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
+    // Reset attempts after successful login
     await Admin.findByIdAndUpdate(admin._id, {
       loginAttempts: 0,
       lockedUntil: null,
@@ -64,7 +59,7 @@ router.post('/admin/login', authLimiter, async (req, res) => {
     });
 
     const token = jwt.sign(
-      { 
+      {
         _id: admin._id,
         role: 'admin'
       },
@@ -72,12 +67,13 @@ router.post('/admin/login', authLimiter, async (req, res) => {
       { expiresIn: '1h' }
     );
 
-      res.cookie('adminToken', token, {
-     httpOnly: true,      
-     secure: true,          
-     sameSite: 'Strict',
-     maxAge: 3600000         
-   });
+    // Set cookie
+    res.cookie('adminToken', token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'Strict',
+      maxAge: 3600000
+    });
 
     res.json({
       success: true,
@@ -87,13 +83,14 @@ router.post('/admin/login', authLimiter, async (req, res) => {
 
   } catch (err) {
     console.error('Login error:', err);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: 'Authentication failed' 
+      message: 'Authentication failed'
     });
   }
 });
 
+// ✅ Admin Token Verification Route
 router.get('/verify', (req, res) => {
   const token = req.cookies.adminToken;
 
@@ -103,7 +100,7 @@ router.get('/verify', (req, res) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    res.status(200).json({ success: true, admin: decoded });
+    return res.status(200).json({ success: true, admin: decoded });
   } catch (err) {
     res.clearCookie('adminToken');
     return res.status(401).json({ success: false, message: 'Invalid token' });
