@@ -4,11 +4,14 @@
   "description": "Madhav Couriers and Logistics Website",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon --watch . --ext js,html,css --exec node server.js",
+    "start": "NODE_ENV=production node server.js",
+    "dev": "NODE_ENV=development nodemon --watch . --ext js,html,css --exec node server.js",
     "clean-install": "rm -rf node_modules package-lock.json && npm install",
-    "test": "jest --watchAll --detectOpenHandles",
-    "lint": "eslint ."
+    "test": "NODE_ENV=test jest --watchAll --detectOpenHandles --runInBand",
+    "lint": "eslint .",
+    "db:health": "node -e \"require('./config/db.config').checkHealth().then(console.log).catch(console.error)\"",
+    "db:migrate": "node scripts/migrate.js",
+    "security-check": "npm audit --production --audit-level=moderate"
   },
   "author": "Your Name",
   "license": "MIT",
@@ -32,7 +35,8 @@
     "morgan": "^1.10.0",
     "socket.io": "^4.7.2",
     "validator": "^13.11.0",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "zlib": "^1.1.0"
   },
   "devDependencies": {
     "eslint": "^9.0.0",
@@ -40,10 +44,28 @@
     "eslint-plugin-import": "^2.29.1",
     "jest": "^29.7.0",
     "nodemon": "^3.1.0",
-    "supertest": "^7.0.0"
+    "supertest": "^7.0.0",
+    "eslint-plugin-security": "^1.7.1",
+    "mongodb-memory-server": "^8.0.0"
   },
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coveragePathIgnorePatterns": [
+      "/node_modules/",
+      "/config/",
+      "/tests/"
+    ],
+    "setupFilesAfterEnv": ["./tests/setup.js"]
+  },
+  "eslintConfig": {
+    "extends": "airbnb-base",
+    "rules": {
+      "no-console": "off",
+      "import/no-extraneous-dependencies": ["error", {"devDependencies": true}]
+    }
   }
 }
