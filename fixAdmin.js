@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const MONGO_URI = 'mongodb+srv://admin:Snaka@786@.../madhav-couriers?retryWrites=true&w=majority&appName=madhav'; // ← Use your actual working URI
+const MONGO_URI = 'mongodb+srv://admin:Snaka%40786@madhav.kfaoq1n.mongodb.net/madhav-couriers?retryWrites=true&w=majority&appName=madhav';
 
 const adminSchema = new mongoose.Schema({
   username: String,
