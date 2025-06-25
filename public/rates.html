@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Madhav Couriers and Logistics | Shipping Rates</title>
+    <title>Madhav Couriers and Logistics | Shipping Rates Calculator</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -135,92 +135,144 @@
             font-weight: 700;
         }
         
-        /* Rates Section */
-        .rates {
+        /* Calculator Section */
+        .calculator {
             padding: 60px 0;
             background-color: white;
         }
         
-        .rates h3 {
+        .calculator h3 {
             font-size: 1.8rem;
             margin-bottom: 30px;
             color: var(--primary);
             text-align: center;
         }
         
-        .rate-tabs {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 30px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .rate-tab {
-            padding: 10px 20px;
+        .calculator-form {
             background-color: #f8fafc;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: all 0.3s;
-            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-bottom: 40px;
         }
         
-        .rate-tab.active {
-            background-color: var(--primary);
-            color: white;
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        
+        .form-group input, 
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-family: 'Poppins', sans-serif;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, 
+        .form-group select:focus {
+            outline: none;
             border-color: var(--primary);
         }
         
-        .rate-tab:hover:not(.active) {
-            background-color: #e2e8f0;
+        .form-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
         }
         
-        .rate-content {
+        .btn {
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: none;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-dark);
+        }
+        
+        .btn-secondary {
+            background-color: var(--gray);
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #64748b;
+        }
+        
+        .result-section {
+            background-color: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            margin-top: 30px;
             display: none;
         }
         
-        .rate-content.active {
-            display: block;
-        }
-        
-        .rate-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 30px;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-        
-        .rate-table th, .rate-table td {
-            padding: 15px;
-            text-align: left;
+        .result-section h4 {
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            color: var(--primary);
             border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 10px;
         }
         
-        .rate-table th {
+        .result-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        
+        .result-item {
+            background-color: #f8fafc;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        
+        .result-item h5 {
+            font-size: 0.9rem;
+            color: #64748b;
+            margin-bottom: 5px;
+        }
+        
+        .result-item p {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        
+        .final-price {
             background-color: var(--primary);
             color: white;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 20px;
+            text-align: center;
+            font-size: 1.3rem;
             font-weight: 600;
-        }
-        
-        .rate-table tr:nth-child(even) {
-            background-color: #f8fafc;
-        }
-        
-        .rate-table tr:hover {
-            background-color: #f1f5f9;
-        }
-        
-        .region-tag {
-            display: inline-block;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 0.8rem;
-            font-weight: 600;
-            background-color: #dbeafe;
-            color: #1e40af;
         }
         
         /* Notice Boxes */
@@ -356,14 +408,16 @@
                 font-size: 1.8rem;
             }
             
-            .rate-tabs {
-                flex-direction: column;
-                align-items: center;
+            .form-grid {
+                grid-template-columns: 1fr;
             }
             
-            .rate-table {
-                display: block;
-                overflow-x: auto;
+            .form-actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
             }
         }
     </style>
@@ -387,195 +441,146 @@
 
     <section class="banner">
         <div class="container">
-            <h2>Competitive Shipping Rates Across India</h2>
-            <p>Transparent pricing with no hidden charges</p>
+            <h2>Shipping Rate Calculator</h2>
+            <p>Calculate your shipping costs instantly</p>
         </div>
     </section>
 
-    <section class="rates">
+    <section class="calculator">
         <div class="container">
-            <h3>Our Shipping Rates</h3>
-            
-            <div class="notice-box success">
-                <h4><i class="fas fa-percentage"></i> Special Discount Offer</h4>
-                <p>Get up to <strong>10% discount</strong> (maximum ₹500) for monthly business above ₹5000. Contact us for bulk shipments and corporate rates.</p>
-            </div>
+            <h3>Calculate Your Shipping Cost</h3>
             
             <div class="notice-box">
                 <h4><i class="fas fa-info-circle"></i> Important Notes</h4>
                 <ul style="padding-left: 20px; margin-top: 10px;">
-                    <li>All rates are for shipments above 20kg</li>
-                    <li>12% or 18% GST applicable on all shipments</li>
+                    <li>All rates are exclusive of GST (12% or 18% applicable)</li>
                     <li>Rates may vary for ODA (Out of Delivery Area) pincodes</li>
-                    <li>Insurance available at 2% of invoice value (optional)</li>
-                    <li>COD charges: 1% of collection amount</li>
+                    <li>Minimum chargeable weight is 1kg</li>
+                    <li>Volumetric weight is calculated as (L × W × H in cm)/5000</li>
                 </ul>
             </div>
             
+            <div class="calculator-form">
+                <form id="rateCalculator">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="originPincode">Origin Pincode</label>
+                            <input type="text" id="originPincode" placeholder="Enter origin pincode" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="destinationPincode">Destination Pincode</label>
+                            <input type="text" id="destinationPincode" placeholder="Enter destination pincode" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="transportMode">Transport Mode</label>
+                            <select id="transportMode" required>
+                                <option value="">Select transport mode</option>
+                                <option value="surface">Surface (Road Transport)</option>
+                                <option value="express">Express (Air Transport)</option>
+                                <option value="heavy">Heavy Shipment (Above 20kg)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="weight">Weight (kg)</label>
+                            <input type="number" id="weight" min="0.1" step="0.1" placeholder="Enter weight in kg" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="length">Length (cm)</label>
+                            <input type="number" id="length" min="1" placeholder="Enter length">
+                        </div>
+                        <div class="form-group">
+                            <label for="width">Width (cm)</label>
+                            <input type="number" id="width" min="1" placeholder="Enter width">
+                        </div>
+                        <div class="form-group">
+                            <label for="height">Height (cm)</label>
+                            <input type="number" id="height" min="1" placeholder="Enter height">
+                        </div>
+                    </div>
+                    
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="codAmount">COD Amount (₹)</label>
+                            <input type="number" id="codAmount" min="0" placeholder="Enter COD amount if applicable">
+                        </div>
+                        <div class="form-group">
+                            <label for="declaredValue">Declared Value (₹)</label>
+                            <input type="number" id="declaredValue" min="0" placeholder="Enter declared value for insurance">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="pickupRequired"> Require Pickup Service (₹200)
+                        </label>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-primary" id="calculateBtn">Calculate Rate</button>
+                        <button type="reset" class="btn btn-secondary">Reset</button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="result-section" id="resultSection">
+                <h4><i class="fas fa-calculator"></i> Shipping Cost Breakdown</h4>
+                <div class="result-grid">
+                    <div class="result-item">
+                        <h5>Base Shipping Cost</h5>
+                        <p id="baseCost">₹0</p>
+                    </div>
+                    <div class="result-item">
+                        <h5>Volumetric Weight</h5>
+                        <p id="volumetricWeight">0 kg</p>
+                    </div>
+                    <div class="result-item">
+                        <h5>COD Charges</h5>
+                        <p id="codCharges">₹0</p>
+                    </div>
+                    <div class="result-item">
+                        <h5>Insurance Charges</h5>
+                        <p id="insuranceCharges">₹0</p>
+                    </div>
+                    <div class="result-item">
+                        <h5>Pickup Charges</h5>
+                        <p id="pickupCharges">₹0</p>
+                    </div>
+                    <div class="result-item">
+                        <h5>ODA Charges</h5>
+                        <p id="odaCharges">₹0</p>
+                    </div>
+                </div>
+                
+                <div class="final-price">
+                    Total Estimated Cost: <span id="totalCost">₹0</span>
+                </div>
+                
+                <div class="form-actions" style="margin-top: 20px;">
+                    <button type="button" class="btn btn-primary" id="bookShipmentBtn">
+                        <i class="fab fa-whatsapp"></i> Book Shipment via WhatsApp
+                    </button>
+                </div>
+            </div>
+            
             <div class="notice-box warning">
-                <h4><i class="fas fa-balance-scale"></i> We Ship Original Weight</h4>
-                <p>No weight discrepancies or fraud - we believe in transparent and honest business practices.</p>
-            </div>
-            
-            <div class="rate-tabs">
-                <div class="rate-tab active" data-tab="express">Express Air Service</div>
-                <div class="rate-tab" data-tab="standard">Standard Service</div>
-                <div class="rate-tab" data-tab="surface">Surface Load</div>
-            </div>
-            
-            <div class="rate-content active" id="express">
-                <table class="rate-table">
-                    <thead>
-                        <tr>
-                            <th>Region</th>
-                            <th>Rate per kg </th>
-                            <th>Transit Time</th>
-                            <th>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>North India <span class="region-tag">Jammu, Himachal, Punjab, Haryana, Delhi, UP, Uttarakhand</span></td>
-                            <td>₹110/kg</td>
-                            <td>1-2 Days</td>
-                            <td>Most economical for urgent shipments</td>
-                        </tr>
-                        <tr>
-                            <td>South India <span class="region-tag">Kerala, Tamil Nadu, Karnataka, Andhra, Telangana</span></td>
-                            <td>₹135/kg</td>
-                            <td>3-4 Days</td>
-                            <td>Direct flights to major cities</td>
-                        </tr>
-                        <tr>
-                            <td>East & North-East <span class="region-tag">West Bengal, Bihar, Jharkhand, Odisha, Assam, NE States</span></td>
-                            <td>₹138/kg</td>
-                            <td>4-5 Days</td>
-                            <td>Special handling for fragile items</td>
-                        </tr>
-                        <tr>
-                            <td>West India <span class="region-tag">Rajasthan, Gujarat, Maharashtra, MP, Chhattisgarh</span></td>
-                            <td>₹120/kg</td>
-                            <td>2-3 Days</td>
-                            <td>Priority service available</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div class="notice-box">
-                    <h4><i class="fas fa-plane"></i> Express Air Service Features</h4>
+                <h4><i class="fas fa-exclamation-triangle"></i> Note About ODA Areas</h4>
+                <p>For ODA (Out of Delivery Area) pincodes, additional charges may apply:
                     <ul style="padding-left: 20px; margin-top: 10px;">
-                        <li>Fastest delivery option with air transportation</li>
-                        <li>Real-time tracking available</li>
-                        <li>Free door-to-door pickup and delivery</li>
-                        <li>Dedicated customer support</li>
-                        <li>Insurance option available</li>
+                        <li>Shipment below 100kg: ₹700</li>
+                        <li>Shipment from 200kg to 400kg: ₹1000</li>
                     </ul>
-                </div>
+                </p>
             </div>
             
-            <div class="rate-content" id="standard">
-                <table class="rate-table">
-                    <thead>
-                        <tr>
-                            <th>Region</th>
-                            <th>Rate per kg (Above 20kg)</th>
-                            <th>Transit Time</th>
-                            <th>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>North India <span class="region-tag">Jammu, Himachal, Punjab, Haryana, Delhi, UP, Uttarakhand</span></td>
-                            <td>₹20/kg</td>
-                            <td>3-5 Days</td>
-                            <td>Most economical for heavy shipments</td>
-                        </tr>
-                        <tr>
-                            <td>South India <span class="region-tag">Kerala, Tamil Nadu, Karnataka, Andhra, Telangana</span></td>
-                            <td>₹28/kg</td>
-                            <td>5-7 Days</td>
-                            <td>Reliable service with tracking</td>
-                        </tr>
-                        <tr>
-                            <td>East & North-East <span class="region-tag">West Bengal, Bihar, Jharkhand, Odisha, Assam, NE States</span></td>
-                            <td>₹38/kg</td>
-                            <td>6-8 Days</td>
-                            <td>Special handling available</td>
-                        </tr>
-                        <tr>
-                            <td>West India <span class="region-tag">Rajasthan, Gujarat, Maharashtra, MP, Chhattisgarh</span></td>
-                            <td>₹27/kg</td>
-                            <td>4-6 Days</td>
-                            <td>Economical for bulk shipments</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div class="notice-box">
-                    <h4><i class="fas fa-truck"></i> Standard Service Features</h4>
-                    <ul style="padding-left: 20px; margin-top: 10px;">
-                        <li>Balance of speed and economy</li>
-                        <li>Combination of air and road transport</li>
-                        <li>Full tracking available</li>
-                        <li>Free pickup from your location</li>
-                        <li>COD services available</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="rate-content" id="surface">
-                <table class="rate-table">
-                    <thead>
-                        <tr>
-                            <th>Region</th>
-                            <th>Rate per kg </th>
-                            <th>Transit Time</th>
-                            <th>Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>North India <span class="region-tag">Jammu, Himachal, Punjab, Haryana, Delhi, UP, Uttarakhand</span></td>
-                            <td>₹35/kg</td>
-                            <td>3-4 Days</td>
-                            <td>Most economical for small shipments</td>
-                        </tr>
-                        <tr>
-                            <td>South India <span class="region-tag">Kerala, Tamil Nadu, Karnataka, Andhra, Telangana</span></td>
-                            <td>₹65/kg</td>
-                            <td>5-6 Days</td>
-                            <td>Best for non-urgent shipments</td>
-                        </tr>
-                        <tr>
-                            <td>East & North-East <span class="region-tag">West Bengal, Bihar, Jharkhand, Odisha, Assam, NE States</span></td>
-                            <td>₹70/kg</td>
-                            <td>6-7 Days</td>
-                            <td>Secure handling for all items</td>
-                        </tr>
-                        <tr>
-                            <td>West India <span class="region-tag">Rajasthan, Gujarat, Maharashtra, MP, Chhattisgarh</span></td>
-                            <td>₹50/kg</td>
-                            <td>5-6 Days</td>
-                            <td>Economical for non urgent volumes</td>
-                        </tr>
-                    </tbody>
-                </table>
-                
-                <div class="notice-box">
-                    <h4><i class="fas fa-shipping-fast"></i> Surface Load Features</h4>
-                    <ul style="padding-left: 20px; margin-top: 10px;">
-                        <li>Most economical for heavy shipments</li>
-                        <li>Ideal for non-perishable goods</li>
-                        <li>Full truck load (FTL) options available</li>
-                        <li>Tracking at major checkpoints</li>
-                        <li>Best for business with flexible timelines</li>
-                    </ul>
-                </div>
-            </div>
-            
-            <div class="notice-box danger">
-                <h4><i class="fas fa-exclamation-triangle"></i> Damage Disclaimer</h4>
-                <p>We provide utmost care in handling your shipments. However, <strong>there will be no guarantee of damage if the product shipment is opted out of insurance</strong>. We strongly recommend insurance for valuable items.</p>
+            <div class="notice-box success">
+                <h4><i class="fas fa-percentage"></i> Special Discount Offer</h4>
+                <p>Get up to <strong>10% discount</strong> (maximum ₹500) for monthly business above ₹5000. Contact us for bulk shipments and corporate rates.</p>
             </div>
         </div>
     </section>
@@ -584,12 +589,14 @@
         <div class="container">
             <div class="info-grid">
                 <div class="info-card">
-                    <h4><i class="fas fa-hand-holding-usd"></i> Payment Options</h4>
-                    <p>We accept all major payment methods including cash, UPI, bank transfer, and cheques. Monthly billing available for regular customers with credit terms.</p>
+                    <h4><i class="fas fa-truck"></i> Transport Modes</h4>
+                    <p><strong>Surface:</strong> Movement of goods via Road transport. Most economical for non-urgent shipments.</p>
+                    <p><strong>Express:</strong> Movement of goods via Air (wherever feasible). Fastest delivery option.</p>
+                    <p><strong>Heavy Shipment:</strong> Special rates for logistics shipments above 20kg.</p>
                 </div>
                 <div class="info-card">
-                    <h4><i class="fas fa-calendar-alt"></i> Business Hours</h4>
-                    <p>Our customer support is available Monday to Saturday from 9AM to 7PM. Pickup and delivery services operate 6 days a week (Sunday closed).</p>
+                    <h4><i class="fas fa-money-bill-wave"></i> Payment Options</h4>
+                    <p>We accept all major payment methods including cash, UPI, bank transfer, and cheques. Monthly billing available for regular customers with credit terms.</p>
                 </div>
                 <div class="info-card">
                     <h4><i class="fas fa-truck-loading"></i> Free Pickup Service</h4>
@@ -630,17 +637,15 @@
     </footer>
 
     <script>
-        // Tab functionality
-        document.querySelectorAll('.rate-tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                // Remove active class from all tabs and contents
-                document.querySelectorAll('.rate-tab').forEach(t => t.classList.remove('active'));
-                document.querySelectorAll('.rate-content').forEach(c => c.classList.remove('active'));
-                
-                // Add active class to clicked tab and corresponding content
-                tab.classList.add('active');
-                document.getElementById(tab.dataset.tab).classList.add('active');
-            });
+        // This will be implemented in the next step
+        document.getElementById('calculateBtn').addEventListener('click', function() {
+            // Placeholder for calculation logic
+            document.getElementById('resultSection').style.display = 'block';
+        });
+        
+        document.getElementById('bookShipmentBtn').addEventListener('click', function() {
+            // Placeholder for WhatsApp redirect
+            alert('This will redirect to WhatsApp in the final implementation');
         });
     </script>
 </body>
