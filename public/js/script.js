@@ -115,7 +115,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         // Calculate additional charges
         const codCharges = codAmount > 0 ? codAmount * 0.01 : 0; // 1% COD charges
-        const insuranceCharges = declaredValue > 0 ? declaredValue * 0.005 : 0; // 0.5% insurance
+        const insuranceCharges = declaredValue > 0 ? declaredValue * 0.05 : 0; // 0.5% insurance
         const pickupCharges = pickupRequired ? 200 : 0;
         
         // Check for ODA charges
